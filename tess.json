@@ -1,12 +1,1 @@
-{
-  "name": "Kazefuri Repo",
-  "description": "Ekstensi Kazefuri untuk Cloudstream",
-  "manifestVersion": 1,
-  "pluginLists": [
-    {
-      "name": "Kazefuri",
-      "url": "https://raw.githubusercontent.com/permatane/coba/kazefuri"
-    }
-  ]
-}
 
