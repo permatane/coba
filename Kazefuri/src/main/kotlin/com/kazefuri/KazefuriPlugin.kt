@@ -8,8 +8,7 @@ import com.lagradost.cloudstream3.extractors.Geodailymotion
 @CloudstreamPlugin
 class KazefuriPlugin: BasePlugin() {
     override fun load() {
-        registerMainAPI(Donghuastream())
-        registerMainAPI(SeaTV())
+        registerMainAPI(Kazefuri())
         registerExtractorAPI(Vtbe())
         registerExtractorAPI(waaw())
         registerExtractorAPI(wishfast())
@@ -20,4 +19,5 @@ class KazefuriPlugin: BasePlugin() {
         registerExtractorAPI(Rumble())
         registerExtractorAPI(PlayStreamplay())
     }
+
 }
