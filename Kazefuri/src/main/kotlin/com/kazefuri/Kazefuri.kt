@@ -3,7 +3,6 @@ package com.kazefuri
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Document
-import com.lagradost.cloudstream3.utils.ExtractorLinkType
 
 class Kazefuri : MainAPI() {
     override var mainUrl = "https://sv3.kazefuri.cloud"
@@ -142,7 +141,10 @@ class Kazefuri : MainAPI() {
             val src = it.attr("src")
             val label = it.attr("label").takeIf { it.isNotEmpty() } ?: "720p"
             val qualityInt = getQualityFromName(label)
-            callback(newExtractorLink(this.name, this.name, src, "", qualityInt))
+            
+            callback(newExtractorLink(this.name, this.name, src, "") {
+                this.quality = qualityInt
+            })
         }
 
         return true
