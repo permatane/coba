@@ -128,24 +128,45 @@ class Kazefuri : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val document = app.get(data).document
+        val html = app.get(data).documentLarge
 
-        document.select("iframe[src], iframe[data-src], video source[src], button[data-src], a[data-url]").forEach {
-            val src = it.attr("src").takeIf { it.isNotEmpty() }
-                ?: it.attr("data-src").takeIf { it.isNotEmpty() }
-                ?: it.attr("data-url").takeIf { it.isNotEmpty() }
-                ?: return@forEach
-            loadExtractor(fixUrl(src), data, subtitleCallback, callback)
-        }
+        val options = html.select("option[data-index]")
 
-        document.select("video source[src]").forEach {
-            val src = it.attr("src")
-            val label = it.attr("label").takeIf { it.isNotEmpty() } ?: "720p"
-            val qualityInt = getQualityFromName(label)
-            
-            callback(newExtractorLink(this.name, this.name, src, "") { link ->
-                link.quality = qualityInt
-            })
+        for (option in options) {
+            val base64 = option.attr("value")
+            if (base64.isBlank()) continue
+            val label = option.text().trim()
+            val decodedHtml = try {
+                base64Decode(base64)
+            } catch (_: Exception) {
+                Log.w("Error", "Base64 decode failed: $base64")
+                continue
+            }
+
+            val iframeUrl = Jsoup.parse(decodedHtml).selectFirst("iframe")?.attr("src")?.let(::httpsify)
+            if (iframeUrl.isNullOrEmpty()) continue
+            when {
+                "vidmoly" in iframeUrl -> {
+                    val cleanedUrl = "http:" + iframeUrl.substringAfter("=\"").substringBefore("\"")
+                    loadExtractor(cleanedUrl, referer = iframeUrl, subtitleCallback, callback)
+                }
+                iframeUrl.endsWith(".mp4") -> {
+                    callback(
+                        newExtractorLink(
+                            label,
+                            label,
+                            url = iframeUrl,
+                            INFER_TYPE
+                        ) {
+                            this.referer = ""
+                            this.quality = getQualityFromName(label)
+                        }
+                    )
+                }
+                else -> {
+                    loadExtractor(iframeUrl, referer = iframeUrl, subtitleCallback, callback)
+                }
+            }
         }
 
         return true
