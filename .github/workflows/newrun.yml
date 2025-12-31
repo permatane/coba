@@ -34,22 +34,16 @@ jobs:
           rm $GITHUB_WORKSPACE/builds/*.cs3 || true
           rm $GITHUB_WORKSPACE/builds/*.jar || true
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v5
+      - name: Setup JDK 23
+        uses: actions/setup-java@v1
         with:
-          java-version: 17
+          java-version: 23
           distribution: adopt
           cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3.2.2
 
-      - name: Access Secrets
-        env:
-          ANIMEKHOR_API: ${{ secrets.ANIMEKHOR_API }}
-        run: |
-          cd $GITHUB_WORKSPACE/src
-          echo ANIMEKHOR_API=$ANIMEKHOR_API >> local.properties 
       - name: Build Plugins
         run: |
           cd $GITHUB_WORKSPACE/src
