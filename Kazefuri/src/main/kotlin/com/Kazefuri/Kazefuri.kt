@@ -15,8 +15,7 @@ class Kazefuri : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(mainUrl).document
-        // Mengambil daftar anime/movie dari halaman depan
-        val items = document.select("article.obj-anime, div.bs").mapNotNull {
+        val items = document.select("article, div.bs").mapNotNull {
             it.toSearchResult()
         }
         return newHomePageResponse("Update Terbaru", items)
@@ -27,7 +26,6 @@ class Kazefuri : MainAPI() {
         val href = this.selectFirst("a")?.attr("href") ?: return null
         val poster = this.selectFirst("img")?.attr("src")
 
-        // Memperbaiki Unresolved reference posterUrl dengan blok init
         return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = poster
         }
@@ -46,11 +44,14 @@ class Kazefuri : MainAPI() {
         val poster = document.selectFirst("img.wp-post-image, .poster img")?.attr("src")
         val description = document.selectFirst(".entry-content p, .description")?.text()
 
-        // Deteksi Episode (untuk Anime/Series)
+        // Perbaikan Episode: Menggunakan newEpisode() bukan constructor Episode()
         val episodes = document.select(".eplister li").mapNotNull {
             val epHref = it.selectFirst("a")?.attr("href") ?: return@mapNotNull null
             val epName = it.selectFirst(".epl-num")?.text() ?: "Episode"
-            Episode(epHref, epName)
+            
+            newEpisode(epHref) {
+                this.name = epName
+            }
         }
 
         return if (episodes.isEmpty()) {
@@ -62,7 +63,8 @@ class Kazefuri : MainAPI() {
             newAnimeLoadResponse(title, url, TvType.Anime) {
                 this.posterUrl = poster
                 this.plot = description
-                addEpisodes(NavType.ITunes, episodes)
+                // Perbaikan NavType: Menggunakan DubStatus karena NavType sudah di-deprecated/pindah
+                addEpisodes(DubStatus.Subbed, episodes) 
             }
         }
     }
@@ -75,7 +77,7 @@ class Kazefuri : MainAPI() {
     ): Boolean {
         val document = app.get(data).document
 
-        // 1. Mencoba Player Iframe (External Extractor)
+        // Iframe Player
         document.select("iframe").forEach { iframe ->
             val src = iframe.attr("src")
             if (src.isNotEmpty()) {
@@ -83,7 +85,7 @@ class Kazefuri : MainAPI() {
             }
         }
 
-        // 2. Mencoba mencari link direct dari script (Menghindari Deprecated Constructor)
+        // Perbaikan ExtractorLink: Menggunakan fungsi helper agar tidak deprecated
         val scriptData = document.select("script").joinToString { it.data() }
         val regex = """["']file["']\s*:\s*["']([^"']+)["']""".toRegex()
         
