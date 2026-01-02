@@ -1,0 +1,144 @@
+[
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://anichin.cafe&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 15935,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 7,
+        "internalName": "Anichin",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Anichin.cs3",
+        "name": "Anichin"
+    },
+    {
+        "iconUrl": "https://animekhor.org/wp-content/uploads/2021/11/AnimeKhor_darkmode.png",
+        "jarFileSize": 79261,
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 18127,
+        "status": 1,
+        "language": "zh",
+        "authors": [
+            "Phisher98"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime"
+        ],
+        "version": 8,
+        "internalName": "Animekhor",
+        "jarUrl": "https://raw.githubusercontent.com/permatane/Plus62/builds/Animekhor.jar",
+        "description": "Anime and Movies",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Animekhor.cs3",
+        "name": "Animekhor"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=javsek.net&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 22196,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane"
+        ],
+        "tvTypes": [
+            "NSFW"
+        ],
+        "version": 3,
+        "internalName": "Javsek",
+        "description": "JavSek",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Javsek.cs3",
+        "name": "Javsek"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://sv3.kazefuri.cloud&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 11492,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 7,
+        "internalName": "Kazefuri",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Kazefuri.cs3",
+        "name": "Kazefuri"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://moviebox.ph&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 41159,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane,NivinCNC,Phisher98"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 5,
+        "internalName": "Moviebox",
+        "description": "Multi Language Movies and Series Provider",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Moviebox.cs3",
+        "name": "Moviebox"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://ngefilm21.pw&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 21493,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 8,
+        "internalName": "Ngefilm",
+        "description": "Ngefilm",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Ngefilm.cs3",
+        "name": "Ngefilm"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=rebahinxxi1.cfd&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/permatane/Plus62",
+        "fileSize": 22386,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Matane, Hexated, TeKuma25"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "Anime",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 12,
+        "internalName": "Rebahin",
+        "description": "Includes: Cgvindo, Kitanonton",
+        "url": "https://raw.githubusercontent.com/permatane/Plus62/builds/Rebahin.cs3",
+        "name": "Rebahin"
+    }
+]
