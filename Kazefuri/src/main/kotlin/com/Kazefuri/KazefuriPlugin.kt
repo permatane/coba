@@ -2,7 +2,6 @@ package com.kazefuri
 
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.Plugin
-import android.content.Context
 
 @CloudstreamPlugin
 class KazefuriPlugin: Plugin() {
@@ -11,4 +10,5 @@ class KazefuriPlugin: Plugin() {
         registerMainAPI(Kazefuri())
     }
 }
+
 
