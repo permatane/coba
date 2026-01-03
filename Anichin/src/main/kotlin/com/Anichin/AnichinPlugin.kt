@@ -12,7 +12,7 @@ import com.lagradost.cloudstream3.extractors.Okrulink
 class AnimenosubProvider: BasePlugin() {
     override fun load() {
         registerMainAPI(Anichin())
-//        registerMainAPI(Kazefuri())
+        registerMainAPI(Kazefuri())
         registerExtractorAPI(embedwish())
         registerExtractorAPI(Filelions())
         registerExtractorAPI(VidHidePro5())
