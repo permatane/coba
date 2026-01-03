@@ -12,7 +12,7 @@ import org.jsoup.nodes.Element
 
 class Javsek : MainAPI() {
     override var mainUrl = "https://podjav.tv/"
-    override var name = "Jav Sek"
+    override var name = "Pod Jav"
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes = setOf(TvType.NSFW)
