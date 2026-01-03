@@ -1,9 +1,21 @@
-package com.Javpoint
+package com.podjav
 
-//import android.util.Log
+import com.lagradost.cloudstream3.*  
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors  
+import com.lagradost.cloudstream3.LoadResponse.Companion.addScore  
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer  
+import com.lagradost.cloudstream3.MainAPI  
+import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.base64Decode 
+import com.lagradost.cloudstream3.TvType  
+import com.lagradost.cloudstream3.mainPageOf  
+import com.lagradost.cloudstream3.newMovieSearchResponse  
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse  
+import com.lagradost.cloudstream3.newMovieLoadResponse  
+import com.lagradost.cloudstream3.newEpisode  
+import com.lagradost.cloudstream3.utils.*  
 import org.jsoup.nodes.Element
-import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.*
+import org.jsoup.Jsoup
 
 class Podjav : MainAPI() {
     override var mainUrl              = "https://podjav.tv/"
@@ -21,101 +33,217 @@ class Podjav : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        if (page == 1) {
-            val document = app.get("$mainUrl/${request.data}/").document
-            val home = document.select("#tdi_56 > div.tdb_module_loop > div")
-                .mapNotNull { it.toSearchResult() }
-            return newHomePageResponse(
-                list = HomePageList(
-                    name = request.name,
-                    list = home,
-                    isHorizontalImages = true
-                ),
-                hasNext = true
-            )
-        }
-        else {
-            val document = app.get("$mainUrl/${request.data}/$page/").document
-            val home = document.select("#tdi_56 > div.tdb_module_loop > div")
-                .mapNotNull { it.toSearchResult() }
-            return newHomePageResponse(
-                list = HomePageList(
-                    name = request.name,
-                    list = home,
-                    isHorizontalImages = true
-                ),
-                hasNext = true
-            )
-        }
+        val url = "$mainUrl/${request.data}".plus("&page=$page")
+        val document = app.get(url).document
+        val items = document.select("div.listupd article.bs")
+                            .mapNotNull { it.toSearchResult() }
+        return newHomePageResponse(HomePageList(request.name, items), hasNext = items.isNotEmpty())
     }
 
-    private fun Element.toSearchResult(): SearchResponse {
-        val title     = this.select("h3 a").attr("title").trim()
-        val href      = fixUrl(this.select("h3 a").attr("href"))
-        val posterUrl = fixUrlNull(this.select("span").attr("data-img-url"))
-        return newMovieSearchResponse(title, href, TvType.NSFW) {
-            this.posterUrl = posterUrl
-        }
-    }
+    private fun Element.toSearchResult(): SearchResponse? {
+    val linkElement = this.selectFirst("a") ?: return null
+    val href = fixUrl(linkElement.attr("href"))
+    val title = linkElement.attr("title").ifBlank {
+        this.selectFirst("div.tt")?.text()
+    } ?: return null
+    val poster = this.selectFirst("img")?.getImageAttr()?.let { fixUrlNull(it) }
 
-    private fun Element.toSearchResult2(): SearchResponse {
-        val title     = this.select("a").attr("title").trim()
-        val href      = fixUrl(this.select("a").attr("href"))
-        val posterUrl = fixUrlNull(this.select("a > img").attr("src"))
-        return newMovieSearchResponse(title, href, TvType.NSFW) {
-            this.posterUrl = posterUrl
+    val isSeries = href.contains("/series/", true) || href.contains("drama", true)
+
+    return if (isSeries) {
+        newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+            this.posterUrl = poster
+        }
+    } else {
+        newMovieSearchResponse(title, href, TvType.Movie) {
+            this.posterUrl = poster
         }
     }
+}
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val searchResponse = mutableListOf<SearchResponse>()
+    val document = app.get("$mainUrl/?s=$query", timeout = 50L).document
+    val results = document.select("div.listupd article.bs")
+        .mapNotNull { it.toSearchResult() }
+    return results
+}
 
-        for (i in 1..4) {
-            val document = app.get("${mainUrl}/search/video/?s=$query&page=$i").document
-
-            val results = document.select("div.td-module-thumb").mapNotNull { it.toSearchResult2() }
-
-            if (!searchResponse.containsAll(results)) {
-                searchResponse.addAll(results)
-            } else {
-                break
-            }
-
-            if (results.isEmpty()) break
-        }
-
-        return searchResponse
+    private fun Element.toRecommendResult(): SearchResponse? {
+    val title = this.selectFirst("div.tt")?.text()?.trim() ?: return null
+    val href = this.selectFirst("a")?.attr("href") ?: return null
+    val posterUrl = this.selectFirst("img")?.getImageAttr()?.let { fixUrlNull(it) }
+    return newMovieSearchResponse(title, href, TvType.Movie) {
+        this.posterUrl = posterUrl
     }
-
+}
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url).document
+    val document = app.get(url).document
 
-        val title       = document.selectFirst("meta[property=og:title]")?.attr("content")?.trim().toString()
-        val poster = document.selectFirst("meta[property=og:image]")?.attr("content")?.trim().toString()
-        val description = document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
-        val recommendations =
-            document.select("ul.videos.related >  li").map {
-                val recomtitle = it.selectFirst("div.video > a")?.attr("title")?.trim().toString()
-                val recomhref = it.selectFirst("div.video > a")?.attr("href").toString()
-                val recomposterUrl = it.select("div.video > a > div > img").attr("src")
-                val recomposter="https://javdoe.sh$recomposterUrl"
-                newAnimeSearchResponse(recomtitle, recomhref, TvType.NSFW) {
-                    this.posterUrl = recomposter
-                }
-            }
-        return newMovieLoadResponse(title, url, TvType.NSFW, url) {
-            this.posterUrl = poster
-            this.plot      = description
-            this.recommendations=recommendations
+    
+    val title = document.selectFirst("h1.entry-title")?.text()?.trim().orEmpty()
+
+    
+    val poster = document.selectFirst("div.bigcontent img")?.getImageAttr()?.let { fixUrlNull(it) }
+
+    
+    val description = document.select("div.entry-content p")
+        .joinToString("\n") { it.text() }
+        .trim()
+
+ 
+    val year = document.selectFirst("span:matchesOwn(Dirilis:)")?.ownText()
+        ?.filter { it.isDigit() }?.take(4)?.toIntOrNull()
+
+    
+    
+    val duration = document.selectFirst("div.spe span:contains(Durasi:)")?.ownText()?.let {
+    val h = Regex("(\\d+)\\s*hr").find(it)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    val m = Regex("(\\d+)\\s*min").find(it)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    h * 60 + m
+    }
+    val country = document.selectFirst("span:matchesOwn(Negara:)")?.ownText()?.trim()
+    val type = document.selectFirst("span:matchesOwn(Tipe:)")?.ownText()?.trim()
+
+    // Genre / tags
+    val tags = document.select("div.genxed a").map { it.text() }
+
+    // Aktor
+    val actors = document.select("span:has(b:matchesOwn(Artis:)) a")
+    .map { it.text().trim() }
+
+    val rating = document.selectFirst("div.rating strong")
+    ?.text()
+    ?.replace("Rating", "")
+    ?.trim()
+    ?.toDoubleOrNull()
+
+    val trailer = document.selectFirst("div.bixbox.trailer iframe")?.attr("src")
+
+    val status = getStatus(
+    document.selectFirst("div.info-content div.spe span")
+        ?.ownText()
+        ?.replace(":", "")
+        ?.trim()
+        ?: ""
+)
+
+    
+    val recommendations = document.select("div.listupd article.bs")
+        .mapNotNull { it.toRecommendResult() }
+
+    
+val episodeElements = document.select("div.eplister ul li a")
+
+val episodes = episodeElements
+    .reversed() // karena biasanya terbaru di atas
+    .mapIndexed { index, aTag ->
+        val href = fixUrl(aTag.attr("href"))
+
+        newEpisode(href) {
+            this.name = "Episode ${index + 1}"
+            this.episode = index + 1
         }
     }
 
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-        val document = app.get(data).document
-        document.select("div.jav_streaming > a").forEach {
-            val link=it.attr("href").substringAfter("','").substringBefore("'")
-            loadExtractor(link,subtitleCallback, callback)
+    return if (episodes.size > 1) {
+    // TV Series
+    newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+        this.posterUrl = poster
+        this.year = year
+        this.plot = description
+        this.tags = tags
+        showStatus = status
+        this.recommendations = recommendations
+        this.duration = duration ?: 0
+        if (rating != null) addScore(rating.toString(), 10)
+        addActors(actors)
+        addTrailer(trailer)
+    }
+} else {
+    // Movie
+    newMovieLoadResponse(title, url, TvType.Movie, episodes.firstOrNull()?.data ?: url) {
+        this.posterUrl = poster
+        this.year = year
+        this.plot = description
+        this.tags = tags
+        this.recommendations = recommendations
+        this.duration = duration ?: 0
+        if (rating != null) addScore(rating.toString(), 10)
+        addActors(actors)
+        addTrailer(trailer)
+    }
+}
+
+}
+       
+    override suspend fun loadLinks(
+    data: String,
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
+
+    val document = app.get(data).document
+
+
+    document.selectFirst("div.player-embed iframe")
+        ?.getIframeAttr()
+        ?.let { iframe ->
+            loadExtractor(httpsify(iframe), data, subtitleCallback, callback)
         }
-        return true
+
+
+    val mirrorOptions = document.select("select.mirror option[value]:not([disabled])")
+
+    for (opt in mirrorOptions) {
+        val base64 = opt.attr("value")
+        if (base64.isBlank()) continue
+
+        try {
+            // Fix untuk base64 yang diselipkan whitespace
+            val cleanedBase64 = base64.replace("\\s".toRegex(), "")
+            val decodedHtml = base64Decode(cleanedBase64)
+
+            val iframeTag = Jsoup.parse(decodedHtml).selectFirst("iframe")
+
+            val mirrorUrl = when {
+                iframeTag?.attr("src")?.isNotBlank() == true ->
+                    iframeTag.attr("src")
+                iframeTag?.attr("data-src")?.isNotBlank() == true ->
+                    iframeTag.attr("data-src")
+                else -> null
+            }
+
+            if (!mirrorUrl.isNullOrBlank()) {
+                loadExtractor(httpsify(mirrorUrl), data, subtitleCallback, callback)
+            }
+
+        } catch (e: Exception) {
+            println("Mirror decode error: ${e.localizedMessage}")
+        }
+    }
+
+    return true
+}
+
+
+    private fun Element.getImageAttr(): String {
+        return when {
+            this.hasAttr("data-src") -> this.attr("abs:data-src")
+            this.hasAttr("data-lazy-src") -> this.attr("abs:data-lazy-src")
+            this.hasAttr("srcset") -> this.attr("abs:srcset").substringBefore(" ")
+            else -> this.attr("abs:src")
+        }
+    }
+
+    private fun Element?.getIframeAttr(): String? {
+        return this?.attr("data-litespeed-src").takeIf { it?.isNotEmpty() == true }
+                ?: this?.attr("src")
+    }
+
+    private fun String?.fixImageQuality(): String? {
+        if (this == null) return null
+        val regex = Regex("(-\\d*x\\d*)").find(this)?.groupValues?.get(0) ?: return this
+        return this.replace(regex, "")
     }
 }
