@@ -1,9 +1,14 @@
 package com.Javpoint
 
-//import android.util.Log
-import org.jsoup.nodes.Element
+import android.util.Log
+import com.lagradost.cloudstream3.MainAPI
+import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.extractors.StreamWishExtractor
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.loadExtractor
+import org.jsoup.nodes.Element
 
 class Javsek : MainAPI() {
     override var mainUrl = "https://javsek.net"
