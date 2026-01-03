@@ -11,12 +11,9 @@ class Javsek : MainAPI() {
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes = setOf(TvType.NSFW)
- //   override val vpnStatus = VPNStatus.MightBeNeeded
+    override val vpnStatus = VPNStatus.MightBeNeeded
 
     override val mainPage = mainPageOf(
-        "?filter=latest" to "Terbaru",
-        "?filter=popular" to "Populer",
-        "?filter=most-viewed" to "Banyak Dilihat",
         "category/indo-sub" to "Indonesia Sub",
         "category/jav-reducing-mosaic-decensored-streaming-and-download" to "JAV Reducing Mosaic",
         "category/english-sub" to "English Sub",
