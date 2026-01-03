@@ -14,11 +14,11 @@ class Anichin : MainAPI() {
     override val supportedTypes       = setOf(TvType.Movie,TvType.Anime)
 
     override val mainPage = mainPageOf(
-        "seri/?status=&type=&order=latest" to "Baru ditambahkan",
-        "seri/?status=&type=&order=update" to "Update Terbaru",
-        "seri/?status=&type=movie&order=update" to "Movie Terbaru",
-        "seri/?status=&type=&order=popular" to "Terpopuler",
-        "seri/?sub=&order=rating" to "Rating Terbaik",
+        "seri/?status=ongoing&order=update" to "Update Terbaru",
+        "seri/?status=ongoing&order&order=popular" to "Paling Populer",
+        "seri/?" to "Donghua",
+        "seri/?status=&type=movie&page=" to "Movies",
+        "seri/?status=completed&order=update" to "Completed"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
