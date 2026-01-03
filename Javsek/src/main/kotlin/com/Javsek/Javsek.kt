@@ -8,8 +8,8 @@ import android.util.Base64
 import android.util.Log
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 class Javsek : MainAPI() {
-    override var mainUrl = "https://javsek.net"
-    override var name = "JavSek"
+    override var mainUrl = "https://podjav.tv"
+    override var name = "PodJav"
     override val hasMainPage = true
     override var lang = "id"
     override val hasQuickSearch = false
