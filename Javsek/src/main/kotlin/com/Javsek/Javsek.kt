@@ -11,7 +11,7 @@ class Javsek : MainAPI() {
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes = setOf(TvType.NSFW)
-    override val vpnStatus = VPNStatus.MightBeNeeded
+ //   override val vpnStatus = VPNStatus.MightBeNeeded
 
     override val mainPage = mainPageOf(
         "?filter=latest" to "Terbaru",
