@@ -125,9 +125,9 @@ override fun loadLinks(
         callback: (ExtractorLink) -> Unit
     ): Boolean {
 
-        val doc = app.get(data).document
+        val document = app.get(data).document
 
-        doc.select("iframe[src]").forEach { iframe ->
+        document.select("iframe[src]").forEach { iframe ->
             val src = iframe.attr("src")
             if (src.isNotBlank()) {
                 loadExtractor(
