@@ -11,7 +11,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 
 class Javsek : MainAPI() {
-    override var mainUrl = "https://javsek.net"
+    override var mainUrl = "https://javsek.net/"
     override var name = "Javsek"
     override val hasMainPage = true
     override var lang = "id"
