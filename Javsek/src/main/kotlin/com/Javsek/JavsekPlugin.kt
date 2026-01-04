@@ -1,23 +1,23 @@
 package com.Javsek
 
-import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.extractors.EmturbovidExtractor
 import com.lagradost.cloudstream3.extractors.StreamTape
 import com.lagradost.cloudstream3.extractors.Voe
-import com.lagradost.cloudstream3.plugins.BasePlugin
+import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+import com.lagradost.cloudstream3.plugins.Plugin
 
 @CloudstreamPlugin
-class JavsekPlugin: BasePlugin() {
+class JavsekPlugin: Plugin() {
     override fun load() {
         registerMainAPI(Javsek())
         registerExtractorAPI(StreamTape())
         registerExtractorAPI(DoodStream())
         registerExtractorAPI(DoodDoply())
         registerExtractorAPI(DoodVideo())
+        registerExtractorAPI(DoooodVideo())
         registerExtractorAPI(d000d())
         registerExtractorAPI(VidhideVIP())
         registerExtractorAPI(Voe())
-        registerExtractorAPI(StreamTape())
         registerExtractorAPI(javclan())
         registerExtractorAPI(Javggvideo())
         registerExtractorAPI(EmturbovidExtractor())

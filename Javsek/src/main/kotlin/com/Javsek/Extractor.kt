@@ -1,4 +1,4 @@
-package com.Javsek
+package com.byayzen
 
 import android.annotation.SuppressLint
 import android.util.Log
@@ -16,14 +16,19 @@ import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.getQualityFromName
 import com.lagradost.cloudstream3.utils.newExtractorLink
 
-class DoodDoply : DoodStream() {
+open class DoodDoply : DoodStream() {
     override var mainUrl = "https://doply.net"
     override var name = "DoodDoply"
 }
 
-class DoodVideo : DoodStream() {
+open class DoodVideo : DoodStream() {
     override var mainUrl = "https://vide0.net"
     override var name = "DoodVideo"
+}
+
+open class DoooodVideo : DoodStream() {
+    override var mainUrl = "https://dooood.com"
+    override var name = "Dooood"
 }
 
 open class DoodStream : ExtractorApi() {
@@ -111,7 +116,7 @@ open class javclan : ExtractorApi() {
     }
 }
 
-class Streamhihi : Streamwish() {
+open class Streamhihi : Streamwish() {
     override var name = "Streamhihi"
     override var mainUrl = "https://streamhihi.com"
 }
@@ -213,7 +218,7 @@ open class Vidhidepro : ExtractorApi() {
     }
 }
 
-class Ds2Play : DoodStream() {
+open class Ds2Play : DoodStream() {
     override var mainUrl = "https://ds2play.com"
 }
 
@@ -244,35 +249,35 @@ open class Javggvideo : ExtractorApi() {
     }
 }
 
-class Javlion : Vidhidepro() {
+open class Javlion : Vidhidepro() {
     override var mainUrl = "https://javlion.xyz"
     override val name = "Javlion"
 }
 
-class VidhideVIP : Vidhidepro() {
+open class VidhideVIP : Vidhidepro() {
     override var mainUrl = "https://vidhidevip.com"
     override val name = "VidhideVIP"
 }
-class Javsw : Streamwish() {
+open class Javsw : Streamwish() {
     override var mainUrl = "https://javsw.me"
     override var name = "Javsw"
 }
 
-class swhoi : Filesim() {
+open class swhoi : Filesim() {
     override var mainUrl = "https://swhoi.com"
     override var name = "Streamwish"
 }
 
-class MixDropis : MixDrop(){
+open class MixDropis : MixDrop(){
     override var mainUrl = "https://mixdrop.is"
 }
 
 
-class Javmoon : Filesim() {
+open class Javmoon : Filesim() {
     override val mainUrl = "https://javmoon.me"
     override val name = "FileMoon"
 }
 
-class d000d : DoodStream() {
+open class d000d : DoodStream() {
     override var mainUrl = "https://d000d.com"
 }
