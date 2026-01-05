@@ -1,92 +1,133 @@
-package com.Javsek
+package com.javsek
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
-import kotlin.text.Regex
-import android.util.Base64
-import android.util.Log
-import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 
 class Javsek : MainAPI() {
-    override var mainUrl = "https://javsek.net"
+
     override var name = "Javsek"
-    override val hasMainPage = true
+    override var mainUrl = "https://javsek.net"
     override var lang = "id"
-    override val hasQuickSearch = false
-    override val supportedTypes = setOf(TvType.NSFW)
-  
-private val mainHeaders = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0",
-        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language" to "en-US,en;q=0.5",
-        "Referer" to "$mainUrl/",
-        "Upgrade-Insecure-Requests" to "1"
-    )
-    
+    override val supportedTypes = setOf(TvType.Movie)
+    override val hasMainPage = true
+
+    // ================= MAIN PAGE =================
+
     override val mainPage = mainPageOf(
-        "$mainUrl/category/indo-sub/" to "Jav Sub indo",
-        "$mainUrl/jav/" to "Latest Updates",
-        
-//        "$mainUrl/category/uncensored/page/" to "Uncensored",
-//       "$mainUrl/category/censored/page/" to "Censored",
+        "/category/indo-sub/" to "Sub Indo"
     )
-    
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val document = if (page == 1) {
-            app.get("${request.data}/", headers = mainHeaders).document
+
+    override fun getMainPage(
+        page: Int,
+        request: MainPageRequest
+    ): HomePageResponse {
+
+        val url = if (page == 1) {
+            mainUrl + request.data
         } else {
-            app.get("${request.data}/page/$page/", headers = mainHeaders).document
+            "${mainUrl}${request.data}page/$page/"
         }
-        val items = document.select("main#primary div.col-md-grid div.box-item div.box-content, div.tabcontent li")
 
-        val hasNext = !request.name.contains("Update")
+        val document = app.get(url).document
 
-        val home = items.mapNotNull { it.toSearchResponse() }
+        val items = document.select("article").mapNotNull { article: Element ->
+            val link = article.selectFirst("a") ?: return@mapNotNull null
+            val title = article.selectFirst("h2")?.text()?.trim()
+                ?: return@mapNotNull null
+            val poster = article.selectFirst("img")?.attr("src")
+
+            newMovieSearchResponse(
+                title,
+                fixUrl(link.attr("href")),
+                TvType.Movie
+            ) {
+                this.posterUrl = poster
+            }
+        }
+
         return newHomePageResponse(
-            list = HomePageList(
-                name = request.name,
-                list = home,
-                isHorizontalImages = true
-            ),
-            hasNext = hasNext
+            request.name,
+            items,
+            hasNextPage = true
         )
     }
 
-    private fun Element.toSearchResponse(): SearchResponse? {
-        val href = fixUrlNull(this.selectFirst("div.imgg a, a")?.attr("href")).toString()
-        val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("src")).toString()
-        val title = this.selectFirst("img")?.attr("alt")
-            ?.ifBlank { this.selectFirst("a")?.attr("title") }.toString()
+    // ================= SEARCH =================
 
-        return newMovieSearchResponse(title, href, TvType.NSFW) {
-            this.posterUrl = posterUrl
-            this.posterHeaders = mainHeaders
+    override fun search(query: String): List<SearchResponse> {
+        val searchUrl = "$mainUrl/?s=${query.replace(" ", "+")}"
+        val document = app.get(searchUrl).document
+
+        return document.select("article").mapNotNull { article: Element ->
+            val link = article.selectFirst("a") ?: return@mapNotNull null
+            val title = article.selectFirst("h2")?.text()?.trim()
+                ?: return@mapNotNull null
+            val poster = article.selectFirst("img")?.attr("src")
+
+            newMovieSearchResponse(
+                title,
+                fixUrl(link.attr("href")),
+                TvType.Movie
+            ) {
+                this.posterUrl = poster
+            }
         }
     }
 
-   override suspend fun search(query: String, page: Int): SearchResponseList {
-        val document = if (page == 1) {
-            app.get("${mainUrl}/?s=$query", mainHeaders).document
-        } else {
-            app.get("${mainUrl}/page/$page/?s=$query", mainHeaders).document
-        }
-        val aramaCevap = document.select("#main > div").mapNotNull { it.toSearchResult() }
+    // ================= LOAD DETAIL =================
 
-        return newSearchResponseList(aramaCevap, hasNext = true)
+    override fun load(url: String): LoadResponse {
+        val document = app.get(url).document
+
+        val title = document.selectFirst("h1.entry-title")?.text()
+            ?: "Javsek Video"
+
+        val poster = document
+            .selectFirst("meta[property=og:image]")
+            ?.attr("content")
+
+        val description = document
+            .selectFirst("meta[property=og:description]")
+            ?.attr("content")
+
+        return newMovieLoadResponse(
+            title,
+            url,
+            TvType.Movie,
+            url
+        ) {
+            this.posterUrl = poster
+            this.plot = description
+        }
     }
 
-    private fun Element.toSearchResult(): SearchResponse {
-        val title = this.select("a img").attr("alt")
-        val href = fixUrl(this.select("a").attr("href"))
-        val posterUrl = fixUrlNull(this.select("a img").attr("src"))
+    // ================= VIDEO LINKS =================
 
-        return newMovieSearchResponse(title, href, TvType.NSFW) {
-            this.posterUrl = posterUrl
-            this.posterHeaders = mainHeaders
+    override fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+
+        val document = app.get(data).document
+
+        document.select("iframe[src]").forEach { iframe: Element ->
+            val iframeUrl = iframe.attr("src")
+            if (iframeUrl.isNotBlank()) {
+                loadExtractor(
+                    fixUrl(iframeUrl),
+                    data,
+                    subtitleCallback,
+                    callback
+                )
+            }
         }
-    }
 
+        return true
+    }
+}
 
     override suspend fun loadLinks(
         data: String,
@@ -186,4 +227,5 @@ private val mainHeaders = mapOf(
         return true
     }
 }
+
 
