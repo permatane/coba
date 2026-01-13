@@ -21,5 +21,12 @@ class AnichinPlugin: BasePlugin() {
         registerExtractorAPI(Rumble())
         registerExtractorAPI(Mp4Upload())
         registerExtractorAPI(Okrulink())
+        registerExtractorAPI(StreamRuby())
+        registerExtractorAPI(svilla())
+        registerExtractorAPI(svanila())
+        registerExtractorAPI(Vidguardto())
+        registerExtractorAPI(Vidguardto1())
+        registerExtractorAPI(Vidguardto2())
+        registerExtractorAPI(Vidguardto3())        
     }
 }
