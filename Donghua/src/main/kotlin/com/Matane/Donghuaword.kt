@@ -8,7 +8,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 
 
-class Donghuaword  : Animekhor() {
+class Donghuaword  : Anichin() {
     override var mainUrl              = "https://donghuaworld.com"
     override var name                 = "Donghuaword"
     override val hasMainPage          = true
