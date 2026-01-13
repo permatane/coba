@@ -59,6 +59,10 @@ class Vidtren: Gdriveplayer() {
     override val mainUrl: String = "https://anichin.stream"
 }
 
+class P2pstream : VidStack() {
+    override var mainUrl = "https://animekhor.p2pstream.vip"
+}
+
 class embedwish : StreamWishExtractor() {
     override var mainUrl = "https://embedwish.com"
 }
