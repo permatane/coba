@@ -6,7 +6,7 @@ import com.lagradost.cloudstream3.utils.*
 import org.jsoup.Jsoup
 
 class Auratail : Anichin() {
-    override var mainUrl              = "https://auratail.vip/"
+    override var mainUrl              = "https://auratail.vip"
     override var name                 = "Auratail"
     override val hasMainPage          = true
     override var lang                 = "id"
