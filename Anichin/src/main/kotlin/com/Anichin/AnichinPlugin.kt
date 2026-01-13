@@ -23,6 +23,7 @@ class AnichinPlugin: BasePlugin() {
         registerExtractorAPI(DoodLaExtractor())
         registerExtractorAPI(Gdriveplayer())  
         registerExtractorAPI(XStreamCdn())
+        registerExtractorAPI(Vidtren())    
         registerExtractorAPI(svilla())
         registerExtractorAPI(svanila())
         registerExtractorAPI(Vidguardto())
