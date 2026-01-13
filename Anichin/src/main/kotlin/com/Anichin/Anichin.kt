@@ -7,6 +7,7 @@ import org.jsoup.Jsoup
 
 class Anichin : MainAPI() {
     override var mainUrl              = "https://anichin.cafe/"
+    private var directUrl: String? = null
     override var name                 = "Anichin"
     override val hasMainPage          = true
     override var lang                 = "id"
