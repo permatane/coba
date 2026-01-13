@@ -49,18 +49,34 @@ override val mainPage = mainPageOf(
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val titleElement = selectFirst("a") ?: return null
-        val title = titleElement.attr("title").ifBlank { titleElement.text().trim() }
-        if (title.isEmpty()) return null
+    val titleElement = selectFirst("a") ?: return null
+    
+    val title = titleElement.attr("title").ifBlank { 
+        titleElement.selectFirst("h2, h3, .title")?.text()?.trim() ?: titleElement.text().trim()
+    }.trim()
+    
+    if (title.isEmpty()) return null
 
-        val href = fixUrl(titleElement.attr("href"))
-        val poster = selectFirst("img")?.attr("abs:src", "data-src", "data-lazy-src", "src")
-            ?.let { fixUrlNull(it) }
+    val href = fixUrl(titleElement.attr("href"))
 
-        return newAnimeSearchResponse(title, href, TvType.Anime) {
-            this.posterUrl = poster
+    // Perbaikan utama: ambil gambar dengan prioritas lazy loading
+    val posterElement = selectFirst("img")
+    val posterUrl = when {
+        posterElement == null -> null
+        else -> {
+            val src = posterElement.attr("src").ifBlank { 
+                posterElement.attr("data-src").ifBlank { 
+                    posterElement.attr("data-lazy-src") 
+                } 
+            }
+            if (src.isNotBlank()) fixUrlNull(src) else null
         }
     }
+
+    return newAnimeSearchResponse(title, href, TvType.Anime) {
+        this.posterUrl = posterUrl
+    }
+}
 
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/?s=$query"
@@ -125,3 +141,4 @@ override val mainPage = mainPageOf(
             }
         }
     }
+}
