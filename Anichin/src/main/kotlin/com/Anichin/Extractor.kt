@@ -3,7 +3,11 @@ package com.Anichin
 
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
-import com.lagradost.cloudstream3.extractors.*
+import com.lagradost.cloudstream3.extractors.StreamWishExtractor
+import com.lagradost.cloudstream3.extractors.VidHidePro
+import com.lagradost.cloudstream3.extractors.VidStack
+import com.lagradost.cloudstream3.extractors.VidhideExtractor
+import com.lagradost.cloudstream3.extractors.Gdriveplayer
 import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.*
 import android.util.Log
@@ -11,7 +15,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.ErrorLoadingException
 import org.jsoup.Jsoup
 
-class Vidtren: XStreamCdn() {
+class Vidtren: Gdriveplayer() {
     override var name = "Anichin Stream"
     override val mainUrl: String = "https://anichin.stream"
 }
