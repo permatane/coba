@@ -2,10 +2,7 @@ package com.Anichin
 
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.extractors.Dailymotion
-import com.lagradost.cloudstream3.extractors.EmturbovidExtractor
-import com.lagradost.cloudstream3.extractors.Mp4Upload
-import com.lagradost.cloudstream3.extractors.Okrulink
+import com.lagradost.cloudstream3.extractors.*
 // import android.content.Context
 
 @CloudstreamPlugin
@@ -23,6 +20,9 @@ class AnichinPlugin: BasePlugin() {
         registerExtractorAPI(Mp4Upload())
         registerExtractorAPI(Okrulink())
         registerExtractorAPI(StreamRuby())
+        registerExtractorAPI(DoodLaExtractor())
+        registerExtractorAPI(Gdriveplayer())  
+        registerExtractorAPI(XStreamCdn())
         registerExtractorAPI(svilla())
         registerExtractorAPI(svanila())
         registerExtractorAPI(Vidguardto())
