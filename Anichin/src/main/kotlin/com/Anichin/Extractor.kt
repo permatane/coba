@@ -8,14 +8,11 @@ import com.lagradost.cloudstream3.extractors.VidHidePro
 import com.lagradost.cloudstream3.extractors.VidStack
 import com.lagradost.cloudstream3.extractors.VidhideExtractor
 import com.lagradost.cloudstream3.newSubtitleFile
-import com.lagradost.cloudstream3.utils.ExtractorApi
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.INFER_TYPE
-import com.lagradost.cloudstream3.utils.M3u8Helper
-import com.lagradost.cloudstream3.utils.getQualityFromName
-import com.lagradost.cloudstream3.utils.newExtractorLink
-import com.lagradost.cloudstream3.utils.JsUnpacker
-import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.*
+import android.util.Log
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.lagradost.cloudstream3.ErrorLoadingException
+import org.jsoup.Jsoup
 
 class embedwish : StreamWishExtractor() {
     override var mainUrl = "https://embedwish.com"
@@ -35,10 +32,27 @@ class VidHidePro5: VidHidePro() {
     override val mainUrl = "https://vidhidevip.com"
     override val requiresReferer = true
 }
+class Vidguardto1 : Vidguardto() {
+    override val mainUrl = "https://bembed.net"
+}
 
-open class Rumble : ExtractorApi() {
-    override var name = "Rumble"
-    override var mainUrl = "https://rumble.com"
+class Vidguardto2 : Vidguardto() {
+    override val mainUrl = "https://listeamed.net"
+}
+
+class Vidguardto3 : Vidguardto() {
+    override val mainUrl = "https://vgfplay.com"
+}
+
+open class Vidguardto : ExtractorApi() {
+    override val name = "Vidguard"
+    override val mainUrl = "https://vidguard.to"
+    override val requiresReferer = false
+}
+
+open class StreamRuby : ExtractorApi() {
+    override val name = "StreamRuby"
+    override val mainUrl = "https://rubyvidhub.com"
     override val requiresReferer = true
 
     override suspend fun getUrl(
@@ -47,50 +61,92 @@ open class Rumble : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        val response = app.get(url, referer = referer ?: "$mainUrl/")
-        val document = response.documentLarge
-
-        val playerScript = document.selectFirst("script:containsData(jwplayer)")?.data()
-            ?: return
-
-        // Extract sources (mp4 or m3u8)
-        val sourceRegex = """"file"\s*:\s*"(https:[^"]+\.(?:mp4|m3u8)[^"]*)"""".toRegex()
-        val sources = sourceRegex.findAll(playerScript)
-
-        for ((index, source) in sources.withIndex()) {
-            val index = index + 1
-            val fileUrl = source.groupValues[1].replace("\\/", "/")
-            if (fileUrl.contains(".mp4"))
+//        Log.d("streamrubby", "url = $url")
+        val id = "embed-([a-zA-Z0-9]+)\\.html".toRegex().find(url)?.groupValues?.get(1) ?: return
+//        Log.d("streamrubby", "id = $id")
+        val response = app.post(
+            "$mainUrl/dl", data = mapOf(
+                "op" to "embed",
+                "file_code" to id,
+                "auto" to "1",
+                "referer" to "",
+            ), referer = referer
+        )
+        val script = if (!getPacked(response.text).isNullOrEmpty()) {
+            getAndUnpack(response.text)
+        } else {
+            response.document.selectFirst("script:containsData(sources:)")?.data()
+        }
+        val m3u8 = Regex("file:\\s*\"(.*?m3u8.*?)\"").find(script ?: return)?.groupValues?.getOrNull(1)
+//        Log.d("streamrubby", "m3u8 = $m3u8")
+        callback.invoke(newExtractorLink(
+            source = this.name,
+            name = this.name,
+            url  = m3u8.toString(),
+            type = ExtractorLinkType.M3U8,
             {
-                callback.invoke(
-                    newExtractorLink(
-                        name,
-                        "$name Video Server $index",
-                        url = fileUrl,
-                        INFER_TYPE
-                    ) {
-                        this.referer = ""
-                        this.quality = getQualityFromName("")
-                    }
-                )
-            } else M3u8Helper.generateM3u8(name, fileUrl, mainUrl).forEach(callback)
-            val fallback="${mainUrl}/hls-vod/${url.substringAfter("/embed/v").substringBefore("/")}/playlist.m3u8?u=0&b=0"
-            M3u8Helper.generateM3u8(name, fallback, mainUrl).forEach(callback)
-        }
-
-
-        // Extract subtitle tracks
-        val trackRegex = """"file"\s*:\s*"(https:[^"]+\.vtt[^"]*)"\s*,\s*"label"\s*:\s*"([^"]+)"""".toRegex()
-        val tracks = trackRegex.findAll(playerScript)
-
-        for (track in tracks) {
-            val fileUrl = track.groupValues[1].replace("\\/", "/")
-            val label = track.groupValues[2]
-
-            subtitleCallback.invoke(
-                newSubtitleFile(label, fileUrl)
-            )
-        }
+                quality = Qualities.Unknown.value
+                this.referer = mainUrl
+            }
+        ))
     }
 }
 
+class svanila : StreamRuby() {
+    override var name = "svanila"
+    override var mainUrl = "https://streamruby.net"
+}
+
+class svilla : StreamRuby() {
+    override var name = "svilla"
+    override var mainUrl = "https://streamruby.com"
+}
+    
+class Rumble : ExtractorApi() {
+    override var name = "Rumble"
+    override var mainUrl = "https://rumble.com"
+    override val requiresReferer = false
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val response = app.get(url, referer = referer ?: "$mainUrl/")
+        val scriptData = response.document.selectFirst("script:containsData(mp4)")?.data()
+            ?.substringAfter("{\"mp4")?.substringBefore("\"evt\":{")
+        if (scriptData == null) return
+
+        val regex = """"url":"(.*?)"|h":(.*?)\}""".toRegex()
+        val matches = regex.findAll(scriptData)
+
+        val processedUrls = mutableSetOf<String>()
+
+        for (match in matches) {
+            val rawUrl = match.groupValues[1]
+            if (rawUrl.isBlank()) continue
+
+            val cleanedUrl = rawUrl.replace("\\/", "/")
+            if (!cleanedUrl.contains("rumble.com")) continue
+            if (!cleanedUrl.endsWith(".m3u8")) continue
+            if (!processedUrls.add(cleanedUrl)) continue
+
+            val m3u8Response = app.get(cleanedUrl)
+            val variantCount = "#EXT-X-STREAM-INF".toRegex().findAll(m3u8Response.text).count()
+
+            if (variantCount > 1) {
+                callback.invoke(
+                    newExtractorLink(
+                        this@Rumble.name,   // source
+                        "Rumble",       // name
+                        cleanedUrl,         // url
+                        ExtractorLinkType.M3U8 // type
+                        // initializer tidak perlu diisi
+                    )
+                )
+                break
+            }
+        }
+    }
+}
