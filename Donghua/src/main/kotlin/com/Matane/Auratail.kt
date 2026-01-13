@@ -18,16 +18,16 @@ class Auratail : Anichin() {
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 override val mainPage = mainPageOf(
-        "" to "Home",                              // homepage utama
-        "genre/ongoing/?order=update" to "Update Terbaru",
-        "genre/ongoing/?order=popular" to "Paling Populer",
-        "?s=&post_type=post" to "Semua Series",    // atau sesuaikan jika ada kategori khusus
-        "genre/movie/" to "Movies / Batch"
+        "" to "Update Terbaru",                              // homepage utama
+        // "genre/ongoing/?order=update" to "Update Terbaru",
+        // "genre/ongoing/?order=popular" to "Paling Populer",
+        // "?s=&post_type=post" to "Semua Series",    // atau sesuaikan jika ada kategori khusus
+        // "genre/movie/" to "Movies / Batch"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/page/$page").documentLarge
-        val home     = document.select("article.bs, article.bsx, div.listupd article, .bsx")
+        val home     = document.select("article.bs, article.bsx, div.listupd article")
             .mapNotNull { it.toSearchResult() }
 
         return newHomePageResponse(
