@@ -9,6 +9,7 @@ import com.lagradost.cloudstream3.extractors.VidStack
 import com.lagradost.cloudstream3.extractors.VidhideExtractor
 import com.lagradost.cloudstream3.extractors.Gdriveplayer
 import com.lagradost.cloudstream3.extractors.Filesim
+import com.lagradost.cloudstream3.extractors.LuluStream
 import com.lagradost.cloudstream3.extractors.StreamSB
 import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.*
@@ -49,6 +50,16 @@ class waaw : StreamSB() {
     override var mainUrl = "https://waaw.to"
 }
 
+class Lulustream1 : LuluStream() {
+    override val name = "Lulustream"
+    override val mainUrl = "https://lulustream.com"
+}
+
+class Lulustream2 : LuluStream() {
+    override val name = "Lulustream"
+    override val mainUrl = "https://kinoger.pw"
+}
+
 class FileMoonSx : Filesim() {
     override val mainUrl = "https://filemoon.sx"
     override val name = "FileMoonSx"
@@ -63,13 +74,13 @@ class P2pstream : VidStack() {
     override var mainUrl = "https://animekhor.p2pstream.vip"
 }
 
-class embedwish : StreamWishExtractor() {
-    override var mainUrl = "https://embedwish.com"
-}
-
 class Filelions : VidhideExtractor() {
     override var name = "Filelions"
     override var mainUrl = "https://filelions.live"
+}
+
+class embedwish : StreamWishExtractor() {
+    override var mainUrl = "https://embedwish.com"
 }
 
 class Swhoi : StreamWishExtractor() {
