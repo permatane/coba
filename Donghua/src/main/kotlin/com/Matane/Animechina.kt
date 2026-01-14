@@ -13,11 +13,14 @@ class Animechina : Anichin() {
     override val hasDownloadSupport   = true
     override val supportedTypes       = setOf(TvType.Movie,TvType.Anime)
 
-    private val headers = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+ private val headers = mapOf(
+        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language" to "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Referer" to "$mainUrl/"
+        "Referer" to "$mainUrl/",
+        "Sec-Fetch-Dest" to "document",
+        "Sec-Fetch-Mode" to "navigate",
+        "Sec-Fetch-Site" to "same-origin"
     )
     
     override val mainPage = mainPageOf(
@@ -25,13 +28,25 @@ class Animechina : Anichin() {
         "ongoing/" to "Ongoing"
     )
 override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val path = request.data.ifEmpty { "/page/$page/" }
+        val path = if (request.data.isEmpty()) "/page/$page/" else request.data + "&page=$page"
         val url = "$mainUrl$path".replace("//", "/")
-        val doc = app.get(url, headers = headers, timeout = 45).document
 
-        val items = doc.select(
-            "article.bs, article.bsx, div.listupd article, .tip, .anime-item, .grid-item, .card, .post-item"
-        ).mapNotNull { it.toSearchResult() }
+        val response = app.get(url, headers = headers, timeout = 50)
+        if (response.code != 200) {
+            // Log untuk debug
+            println("Request ke $url gagal: ${response.code}")
+            return newHomePageResponse(emptyList(), hasNext = false)
+        }
+
+        val doc = response.document
+
+        // Selector utama dari snippet kamu
+        val items = doc.select("div.series__card").mapNotNull { it.toSearchResult() }
+
+        // Fallback jika selector utama gagal (situs mungkin punya variasi)
+        if (items.isEmpty()) {
+            doc.select("article, .bsx, .bs, .tip, .anime-item, div.series__thumbnail").mapNotNull { it.toSearchResult() }
+        }
 
         return newHomePageResponse(
             list = HomePageList(
@@ -44,20 +59,19 @@ override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageR
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val linkElem = selectFirst("a[href]") ?: return null
-        val title = linkElem.attr("title").ifBlank {
-            selectFirst("h2, h3, .tt, .title")?.text()?.trim() ?: ""
+        val linkElem = selectFirst("a[href][title]") ?: return null
+        val title = linkElem.attr("title").trim().ifEmpty {
+            selectFirst("div.series__title h2")?.text()?.trim() ?: ""
         }
         if (title.isEmpty()) return null
 
         val href = fixUrl(linkElem.attr("href"))
 
-        val imgElem = selectFirst("img")
+        // Prioritaskan data-src untuk lazyload (seperti di snippet)
+        val imgElem = selectFirst("img.lazyload")
         val poster = imgElem?.let {
-            it.attr("src").ifBlank {
-                it.attr("data-src").ifBlank {
-                    it.attr("data-lazy-src").ifBlank { it.attr("data-original") }
-                }
+            it.attr("data-src").ifBlank {
+                it.attr("data-lazy-src").ifBlank { it.attr("src") }
             }
         }?.trim()?.let { fixUrlNull(it) }
 
