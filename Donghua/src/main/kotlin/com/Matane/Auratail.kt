@@ -92,14 +92,8 @@ override fun load(url: String): LoadResponse {
             document.selectFirst("div.thumb img")?.attr("src")
                 ?: document.selectFirst("meta[property=og:image]")?.attr("content")
 
-        return newMovieLoadResponse(
-            title,
-            url,
-            TvType.Anime,
-            url
-        ) {
-            this.posterUrl = poster
-            this.plot =
-                document.selectFirst("meta[property=og:description]")?.attr("content")
+        return newMovieLoadResponse(title, url, TvType.Anime, url) {
+                this.posterUrl = poster
+                this.plot = description
         }
 }
