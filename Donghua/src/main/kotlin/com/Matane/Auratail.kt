@@ -69,7 +69,7 @@ override val mainPage = mainPageOf(
         this.posterUrl = posterUrl
     }
 }
-
+    
 override suspend fun loadLinks(
     data: String,
     isCasting: Boolean,
@@ -115,4 +115,5 @@ override suspend fun loadLinks(
     }
 
     return true
+}
 }
