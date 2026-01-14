@@ -73,42 +73,49 @@ override val mainPage = mainPageOf(
 override suspend fun load(url: String): LoadResponse {
     val doc = app.get(url).document
 
-    val title = doc.selectFirst("h1.entry-title, .post-title h1, h1")?.text()?.trim() ?: "Unknown Title"
-    val poster = doc.selectFirst("div.thumb img, img.poster, meta[property=og:image]")?.let {
-        fixUrlNull(it.attr("src").ifBlank { it.attr("data-src") })
-    }
+    val name = doc.selectFirst("h1.entry-title, .post-title h1, h1[itemprop=name], h1")
+        ?.text()
+        ?.trim() ?: "Unknown Title"
 
+    val poster = doc.selectFirst("div.thumb img, img.poster, .wp-post-image, meta[property=og:image]")
+        ?.let { elem ->
+            elem.attr("src").ifBlank { elem.attr("data-src") }.ifBlank { elem.attr("data-lazy-src") }
+                .ifBlank { elem.attr("content") }
+        }?.trim()?.let { fixUrlNull(it) }
 
-
-    val episodes = doc.select("div.eplister ul li, .episodelist ul li, #episode_related li")
+    // Ambil episodes (untuk series)
+    val episodes = doc.select("div.eplister ul li, .episodelist ul li, #episode_related li, .episode-list li")
         .mapNotNull { el ->
             val a = el.selectFirst("a") ?: return@mapNotNull null
             val href = fixUrl(a.attr("href"))
-            val epNumStr = el.selectFirst(".epl-num, .episode-number")?.text()?.trim() ?: ""
+            val epNumStr = el.selectFirst(".epl-num, .episode-number, span")?.text()?.trim() ?: ""
             val epNum = epNumStr.toIntOrNull() ?: Regex("""\d+""").find(epNumStr)?.value?.toIntOrNull()
 
             newEpisode(href) {
                 this.name = "Episode ${epNum ?: "?"}"
                 this.episode = epNum
-
             }
-        }.reversed() 
+        }.reversed()  // Urut dari episode 1 ke terbaru
 
-    val isMovie = url.contains("/movie/") || title.lowercase().contains("movie") || title.lowercase().contains("batch") || episodes.isEmpty()
+    // Deteksi movie vs series
+    val isMovie = url.contains("/movie/", ignoreCase = true) ||
+                  name.lowercase().contains("movie") ||
+                  name.lowercase().contains("batch") ||
+                  episodes.isEmpty()
 
     return if (isMovie) {
         newMovieLoadResponse(
-            title = title,
+            name = name,     
             url = url,
             type = TvType.AnimeMovie,
-            data = url 
+            dataUrl = url     
         ) {
             this.posterUrl = poster
-            // tambahkan plot, tags, dll jika perlu
+            // Tambahkan jika ada: this.plot = synopsis, this.tags = genres, dll
         }
     } else {
         newAnimeLoadResponse(
-            title = title,
+            name = name,     
             url = url,
             type = TvType.Anime
         ) {
