@@ -80,7 +80,7 @@ override val mainPage = mainPageOf(
 
  }
 
-    override suspend fun load(url: String): LoadResponse {
+    override fun load(url: String): LoadResponse {
         val document = app.get(url).documentLarge
         val title= document.selectFirst("h1.entry-title")?.text()?.trim().toString()
         val href=document.selectFirst(".eplister li > a")?.attr("href") ?:""
