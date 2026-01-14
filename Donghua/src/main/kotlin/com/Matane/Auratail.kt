@@ -19,6 +19,10 @@ class Auratail : Anichin() {
 
 override val mainPage = mainPageOf(
         "" to "Update Terbaru",                              // homepage utama
+        "" to "Home - Terbaru Hari Ini",           // Baris 1: Full terbaru
+        "?order=update&per_page=12" to "Update Terbaru (Bagian 1)",  // Baris 2: Potong sebagian
+        "?order=update&per_page=12&page=2" to "Update Terbaru (Bagian 2)", // Baris 3: Halaman berikutnya
+        "?order=popular" to "Paling Populer"
         // "genre/ongoing/?order=update" to "Update Terbaru",
         // "genre/ongoing/?order=popular" to "Paling Populer",
         // "?s=&post_type=post" to "Semua Series",    // atau sesuaikan jika ada kategori khusus
@@ -102,6 +106,7 @@ override suspend fun load(url: String): LoadResponse {
                   name.lowercase().contains("movie") ||
                   name.lowercase().contains("batch") ||
                   episodes.isEmpty()
+    val description = doc.selectFirst("div.entry-content, meta[property=og:description]")?.text()?.trim()
 
     return if (isMovie) {
         newMovieLoadResponse(
@@ -111,9 +116,8 @@ override suspend fun load(url: String): LoadResponse {
             dataUrl = url     
         ) {
             this.posterUrl = poster
-            this.plot = synopsis
-            this.tags = genres
-            //this.tags = document.select("a[rel=tag]").eachText()
+            this.plot = description
+                //this.tags = document.select("a[rel=tag]").eachText()
             // Tambahkan jika ada: this.plot = synopsis, this.tags = genres, dll
         }
     } else {
@@ -123,8 +127,7 @@ override suspend fun load(url: String): LoadResponse {
             type = TvType.Anime
         ) {
             this.posterUrl = poster
-            this.plot = synopsis
-            this.tags = genres
+            this.plot = description
             addEpisodes(DubStatus.Subbed, episodes)
         }
     }
