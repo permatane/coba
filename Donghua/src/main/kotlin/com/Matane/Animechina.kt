@@ -64,7 +64,7 @@ private fun Element.toSearchResult(): SearchResponse? {
 
     return newAnimeSearchResponse(title, href, TvType.Anime) {
         this.posterUrl = posterUrl
-        this.name = title
+
     }
 }
 
