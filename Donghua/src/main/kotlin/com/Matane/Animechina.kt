@@ -36,7 +36,7 @@ class Animechina : Anichin() {
     val titleElement = selectFirst("a[href][title]") ?: return null
     
     val title = titleElement.attr("title").ifBlank { 
-        titleElement.selectFirst("h2, h3, div.series__title h2")?.text()?.trim() ?: titleElement.text().trim()
+        titleElement.selectFirst("div.series__title h2")?.text()?.trim() ?: titleElement.text().trim()
     }.trim()
     
     if (title.isEmpty()) return null
@@ -44,7 +44,7 @@ class Animechina : Anichin() {
     val href = fixUrl(titleElement.attr("href"))
 
     // Perbaikan utama: ambil gambar dengan prioritas lazy loading
-    val posterElement = selectFirst("img")
+    val posterElement = selectFirst("img.lazyload")
     val posterUrl = when {
         posterElement == null -> null
         else -> {
