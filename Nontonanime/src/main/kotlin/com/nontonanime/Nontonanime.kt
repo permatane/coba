@@ -14,7 +14,7 @@ import org.jsoup.nodes.Element
 import java.net.URI
 
 class Nontonanime : MainAPI() {
-    override var mainUrl = "https://www.nontonanimeindo.id"
+    override var mainUrl = "https://s7.nontonanimeid.boats"
     override var name = "NontonAnime"
     override val hasMainPage = true
     override var lang = "id"
