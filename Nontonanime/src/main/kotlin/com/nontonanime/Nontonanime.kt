@@ -101,7 +101,6 @@ class Nontonanime : MainAPI() {
 
         val animeCard = document.selectFirst("div.anime-card") ?: return null
 
-        // Title dari alt img atau fallback
         val title = animeCard.selectFirst(".anime-card__sidebar img")?.attr("alt")?.trim()
             ?.removePrefix("Nonton ")?.removeSuffix(" Sub Indo") ?: return null
 
@@ -109,15 +108,12 @@ class Nontonanime : MainAPI() {
 
         val tags = animeCard.select(".anime-card__genres a.genre-tag").map { it.text() }
 
-        // Year dari aired
         val aired = animeCard.selectFirst("li:contains(Aired:)")?.text()?.substringAfter("Aired:")?.trim() ?: ""
         val year = Regex("(\\d{4})").find(aired)?.groupValues?.get(1)?.toIntOrNull()
 
-        // Status dari .info-item.status-airing
         val statusText = animeCard.selectFirst(".info-item.status-airing")?.text()?.trim() ?: ""
         val status = getStatus(statusText)
 
-        // Type dari .anime-card__score .type (misal ONA, TV, dll)
         val typeText = animeCard.selectFirst(".anime-card__score .type")?.text()?.trim() ?: ""
         val type = getType(typeText)
 
@@ -127,34 +123,28 @@ class Nontonanime : MainAPI() {
 
         val trailer = animeCard.selectFirst("a.trailerbutton")?.attr("href")
 
-        // Episodes: Coba ambil dari .meta-episodes jika statis, atau fallback ke mishafilter ajax (jika button.buttfilter ada)
-        val episodes = if (document.select("button.buttfilter").isNotEmpty()) {
-            val id = animeCard.selectFirst(".bookmark")?.attr("data-id") ?: ""
-            val numEp = animeCard.selectFirst(".info-item:contains(episodes-list)")?.text()?.replace(Regex("\\D"), "") ?: "1"
-            Jsoup.parse(
-                app.post(
-                    url = "$mainUrl/wp-admin/admin-ajax.php",
-                    data = mapOf(
-                        "misha_number_of_results" to numEp,
-                        "misha_order_by" to "date-DESC",
-                        "action" to "mishafilter",
-                        "series_id" to id
-                    )
-                ).parsed<EpResponse>().content
-            ).select("li").map {
-                val episodeStr = it.selectFirst("a")?.text()?.trim() ?: ""
-                val episode = Regex("Episode\\s?(\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
-                val link = fixUrl(it.selectFirst("a")!!.attr("href"))
-                newEpisode(link) { this.episode = episode }
-            }.reversed()
-        } else {
-            // Fallback scrape langsung dari meta-episodes (Pertama & Terakhir, tapi bisa extend jika full list)
-            document.select(".episodes-list .episode-list-item a.ep-link").map {
+        // Daftar episode: Ambil dari .episode-list-items > a.episode-item (full list statis di halaman)
+        val episodeListSection = document.selectFirst("section.anime-card__episode-list-section")
+        val episodes = episodeListSection?.select(".episode-list-items > a.episode-item")?.mapNotNull {
+            val episodeStr = it.selectFirst(".ep-title")?.text()?.trim() ?: ""
+            val epNum = Regex("Episode\\s?(\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
+            val link = fixUrl(it.attr("href"))
+            if (link.isNotBlank()) {
+                newEpisode(link) {
+                    this.episode = epNum
+                    this.name = episodeStr
+                }
+            } else null
+        }?.sortedBy { it.episode } ?: listOf()
+
+        // Fallback jika tidak ada di section episode (jarang terjadi)
+        if (episodes.isEmpty()) {
+            document.select(".meta-episodes .meta-episode-item a.ep-link").mapNotNull {
                 val episodeStr = it.text().trim()
-                val episode = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
+                val epNum = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
                 val link = fixUrl(it.attr("href"))
-                newEpisode(link) { this.episode = episode }
-            }.reversed()
+                newEpisode(link) { this.episode = epNum }
+            }
         }
 
         val recommendations = document.select(".result > li").mapNotNull {
@@ -185,7 +175,6 @@ class Nontonanime : MainAPI() {
             addAniListId(tracker?.aniId?.toIntOrNull())
         }
     }
-
    override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
