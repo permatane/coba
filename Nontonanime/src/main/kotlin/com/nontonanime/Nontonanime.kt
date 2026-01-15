@@ -46,31 +46,21 @@ class Nontonanime : MainAPI() {
 
     override val mainPage = mainPageOf(
         "" to "Latest Update",
-        "ongoing-list/?sort=date&mode=sort" to "Ongoing List",
+        "ongoing-list/?sort=date&mode=sort" to " Ongoing List",
         "popular-series/" to "Popular Series",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/${request.data}").document
-        
-        // Tambah scraping untuk featured slider atau banner atas
-        val featured = document.select("div.slider, .owl-carousel .item, .hero-slider .item, .banner img").mapNotNull {
-            it.toSearchResult()
-        }
-
         val home = document.select(".animeseries").mapNotNull {
             it.toSearchResult()
         }
-        
-        // Combine featured jika ada
-        val allHome = if (featured.isNotEmpty()) featured + home else home
-        
-        return newHomePageResponse(request.name, allHome, hasNext = false)
+        return newHomePageResponse(request.name, home, hasNext = false)
     }
 
-    private fun Element.toSearchResult(): AnimeSearchResponse? {
-        val href = fixUrl(this.selectFirst("a")?.attr("href") ?: return null)
-        val title = this.selectFirst(".title")?.text() ?: return null
+    private fun Element.toSearchResult(): AnimeSearchResponse {
+        val href = fixUrl(this.selectFirst("a")!!.attr("href"))
+        val title = this.selectFirst(".title")?.text() ?: ""
         val posterUrl = fixUrlNull(this.selectFirst("img")?.getImageAttr())
 
         return newAnimeSearchResponse(title, href, TvType.Anime) {
@@ -109,31 +99,38 @@ class Nontonanime : MainAPI() {
         mainUrl = getBaseUrl(req.url)
         val document = req.document
 
-        // Extract misha nonce untuk episode ajax
-        val mishaScript = document.select("script:contains(misha)").html()
-        val mishaNonce = Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(mishaScript)?.groupValues?.get(1) ?: ""
+        val animeCard = document.selectFirst("div.anime-card") ?: return null
 
-        val title = document.selectFirst("h1.entry-title.cs")!!.text()
-            .removeSurrounding("Nonton Anime", "Sub Indo").trim()
-        val poster = document.selectFirst(".poster > img")?.getImageAttr()
-        val tags = document.select(".tagline > a").map { it.text() }
+        // Title dari alt img atau fallback
+        val title = animeCard.selectFirst(".anime-card__sidebar img")?.attr("alt")?.trim()
+            ?.removePrefix("Nonton ")?.removeSuffix(" Sub Indo") ?: return null
 
-        val year = Regex("\\d, (\\d*)").find(
-            document.select(".bottomtitle > span:nth-child(5)").text()
-        )?.groupValues?.get(1)?.toIntOrNull()
-        val status = getStatus(
-            document.select("span.statusseries").text().trim()
-        )
-        val type = getType(document.select("span.typeseries").text().trim().lowercase())
-        val rating = document.select("span.nilaiseries").text().trim()
-        val description = document.select(".entry-content.seriesdesc > p").text().trim()
-        val trailer = document.selectFirst("a.trailerbutton")?.attr("href")
+        val poster = animeCard.selectFirst(".anime-card__sidebar img")?.getImageAttr()
 
+        val tags = animeCard.select(".anime-card__genres a.genre-tag").map { it.text() }
+
+        // Year dari aired
+        val aired = animeCard.selectFirst("li:contains(Aired:)")?.text()?.substringAfter("Aired:")?.trim() ?: ""
+        val year = Regex("(\\d{4})").find(aired)?.groupValues?.get(1)?.toIntOrNull()
+
+        // Status dari .info-item.status-airing
+        val statusText = animeCard.selectFirst(".info-item.status-airing")?.text()?.trim() ?: ""
+        val status = getStatus(statusText)
+
+        // Type dari .anime-card__score .type (misal ONA, TV, dll)
+        val typeText = animeCard.selectFirst(".anime-card__score .type")?.text()?.trim() ?: ""
+        val type = getType(typeText)
+
+        val rating = animeCard.selectFirst(".anime-card__score .value")?.text()?.trim()
+
+        val description = animeCard.selectFirst(".synopsis-prose p")?.text()?.trim() ?: "No Plot Found"
+
+        val trailer = animeCard.selectFirst("a.trailerbutton")?.attr("href")
+
+        // Episodes: Coba ambil dari .meta-episodes jika statis, atau fallback ke mishafilter ajax (jika button.buttfilter ada)
         val episodes = if (document.select("button.buttfilter").isNotEmpty()) {
-            val id = document.select("input[name=series_id]").attr("value")
-            val numEp =
-                document.selectFirst(".latestepisode > a")?.text()?.replace(Regex("\\D"), "")
-                    .toString()
+            val id = animeCard.selectFirst(".bookmark")?.attr("data-id") ?: ""
+            val numEp = animeCard.selectFirst(".info-item:contains(Episodes)")?.text()?.replace(Regex("\\D"), "") ?: "1"
             Jsoup.parse(
                 app.post(
                     url = "$mainUrl/wp-admin/admin-ajax.php",
@@ -141,25 +138,22 @@ class Nontonanime : MainAPI() {
                         "misha_number_of_results" to numEp,
                         "misha_order_by" to "date-DESC",
                         "action" to "mishafilter",
-                        "series_id" to id,
-                        "nonce" to mishaNonce  // Tambah nonce untuk mishafilter
-                    ),
-                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                        "series_id" to id
+                    )
                 ).parsed<EpResponse>().content
             ).select("li").map {
-                val episode = Regex("Episode\\s?(\\d+)").find(
-                    it.selectFirst("a")?.text().toString()
-                )?.groupValues?.getOrNull(0) ?: it.selectFirst("a")?.text() ?: ""
+                val episodeStr = it.selectFirst("a")?.text()?.trim() ?: ""
+                val episode = Regex("Episode\\s?(\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
                 val link = fixUrl(it.selectFirst("a")!!.attr("href"))
-                newEpisode(link){this.episode = episode.toIntOrNull()}
+                newEpisode(link) { this.episode = episode }
             }.reversed()
         } else {
-            document.select("ul.misha_posts_wrap2 > li").map {
-                val episode = Regex("Episode\\s?(\\d+)").find(
-                    it.selectFirst("a")?.text().toString()
-                )?.groupValues?.getOrNull(0) ?: it.selectFirst("a")?.text() ?: ""
-                val link = it.select("a").attr("href")
-                newEpisode(link){this.episode = episode.toIntOrNull()}
+            // Fallback scrape langsung dari meta-episodes (Pertama & Terakhir, tapi bisa extend jika full list)
+            document.select(".meta-episodes .meta-episode-item a.ep-link").map {
+                val episodeStr = it.text().trim()
+                val episode = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
+                val link = fixUrl(it.attr("href"))
+                newEpisode(link) { this.episode = episode }
             }.reversed()
         }
 
@@ -190,7 +184,6 @@ class Nontonanime : MainAPI() {
             addMalId(tracker?.malId)
             addAniListId(tracker?.aniId?.toIntOrNull())
         }
-
     }
 
     override suspend fun loadLinks(
@@ -202,14 +195,11 @@ class Nontonanime : MainAPI() {
 
         val document = app.get(data).document
 
-        val nonceScript = document.select("script#ajax_video-js-extra, script:contains(player_ajax)").html()
-        val nonce = nonceScript.substringAfter("nonce\":\"").substringBefore("\"")
-            .takeIf { it.isNotBlank() }
-            ?: nonceScript.substringAfter("'nonce':'").substringBefore("'")
-            ?: nonceScript.substringAfter("nonce: \"").substringBefore("\"")
-            ?: nonceScript.substringAfter("nonce: '").substringBefore("'")
-            ?: Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(nonceScript)?.groupValues?.get(1)
-            ?: return false  // Lebih banyak varian untuk nonce
+        val nonce =
+            document.select("script#ajax_video-js-extra").attr("src").substringAfter("base64,")
+                .let {
+                    AppUtils.parseJson<Map<String, String>>(base64Decode(it).substringAfter("="))["nonce"]
+                }
 
         document.select(".container1 > ul > li:not(.boxtab)").amap {
             val dataPost = it.attr("data-post")
@@ -223,13 +213,10 @@ class Nontonanime : MainAPI() {
                     "post" to dataPost,
                     "nume" to dataNume,
                     "type" to dataType,
-                    "nonce" to nonce
+                    "nonce" to "$nonce"
                 ),
                 referer = data,
-                headers = mapOf(
-                    "X-Requested-With" to "XMLHttpRequest",
-                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                )  // Tambah user-agent untuk bypass potensial
+                headers = mapOf("X-Requested-With" to "XMLHttpRequest")
             ).document.selectFirst("iframe")?.attr("src")
 
             loadExtractor(iframe ?: return@amap, "$mainUrl/", subtitleCallback, callback)
@@ -248,13 +235,8 @@ class Nontonanime : MainAPI() {
         return when {
             this.hasAttr("data-src") -> this.attr("abs:data-src")
             this.hasAttr("data-lazy-src") -> this.attr("abs:data-lazy-src")
-            this.hasAttr("data-lazyload") -> this.attr("abs:data-lazyload")
-            this.hasAttr("data-original") -> this.attr("abs:data-original")
-            this.hasAttr("data-lazy") -> this.attr("abs:data-lazy")
-            this.hasAttr("data-srcset") -> this.attr("abs:data-srcset").substringBefore(" ")
-            this.hasAttr("srcset") -> this.attr("abs:srcset").split(",").firstOrNull()?.trim()?.split(" ")?.firstOrNull()
-            this.hasAttr("src") && this.attr("src").isNotBlank() -> this.attr("abs:src")
-            else -> null
+            this.hasAttr("srcset") -> this.attr("abs:srcset").substringBefore(" ")
+            else -> this.attr("abs:src")
         }
     }
 
@@ -264,5 +246,4 @@ class Nontonanime : MainAPI() {
         @JsonProperty("found_posts") val found_posts: Int?,
         @JsonProperty("content") val content: String
     )
-
 }
