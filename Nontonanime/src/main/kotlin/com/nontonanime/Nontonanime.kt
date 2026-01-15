@@ -101,6 +101,7 @@ class Nontonanime : MainAPI() {
 
         val animeCard = document.selectFirst("div.anime-card") ?: return null
 
+        // Title dari alt img atau fallback
         val title = animeCard.selectFirst(".anime-card__sidebar img")?.attr("alt")?.trim()
             ?.removePrefix("Nonton ")?.removeSuffix(" Sub Indo") ?: return null
 
@@ -108,12 +109,15 @@ class Nontonanime : MainAPI() {
 
         val tags = animeCard.select(".anime-card__genres a.genre-tag").map { it.text() }
 
+        // Year dari aired
         val aired = animeCard.selectFirst("li:contains(Aired:)")?.text()?.substringAfter("Aired:")?.trim() ?: ""
         val year = Regex("(\\d{4})").find(aired)?.groupValues?.get(1)?.toIntOrNull()
 
+        // Status dari .info-item.status-airing
         val statusText = animeCard.selectFirst(".info-item.status-airing")?.text()?.trim() ?: ""
         val status = getStatus(statusText)
 
+        // Type dari .anime-card__score .type (misal ONA, TV, dll)
         val typeText = animeCard.selectFirst(".anime-card__score .type")?.text()?.trim() ?: ""
         val type = getType(typeText)
 
@@ -123,46 +127,34 @@ class Nontonanime : MainAPI() {
 
         val trailer = animeCard.selectFirst("a.trailerbutton")?.attr("href")
 
-        // Extract nonce & post_id untuk AJAX episodes
-        val lazyScript = document.select("script:contains(myLazySearchSeries)").html()
-        val nonce = Regex("""nonce:\s*['"]([^'"]+)['"]""").find(lazyScript)?.groupValues?.get(1) ?: ""
-        val postId = Regex("""post_id:\s*['"]([^'"]+)['"]""").find(lazyScript)?.groupValues?.get(1)
-            ?: animeCard.selectFirst(".bookmark")?.attr("data-id") ?: ""
-
-        // Coba load full episode list via search_endpoint (query kosong = full list)
-        val episodes = mutableListOf<Episode>()
-        if (postId.isNotBlank() && nonce.isNotBlank()) {
-            val response = app.post(
-                url = "$mainUrl/wp-admin/admin-ajax.php",
-                data = mapOf(
-                    "action" to "search_endpoint",
-                    "nonce" to nonce,
-                    "query" to "",
-                    "post_id" to postId
-                ),
-                headers = mapOf("X-Requested-With" to "XMLHttpRequest")
-            ).text
-
-            if (response.startsWith("[") && response.endsWith("]")) {
-                val items = AppUtils.parseJson<List<EpisodeItem>>(response)
-                items.forEach { item ->
-                    val epNum = Regex("Episode\\s?(\\d+)").find(item.title)?.groupValues?.get(1)?.toIntOrNull()
-                    episodes.add(newEpisode(fixUrl(item.url)) {
-                        this.episode = epNum
-                        this.name = item.title
-                    })
-                }
-            }
-        }
-
-        // Jika AJAX gagal atau kosong, fallback ke statis (minimal Pertama & Terakhir)
-        if (episodes.isEmpty()) {
-            document.select(".meta-episodes .meta-episode-item a.ep-link").mapTo(episodes) {
+        // Episodes: Coba ambil dari .meta-episodes jika statis, atau fallback ke mishafilter ajax (jika button.buttfilter ada)
+        val episodes = if (document.select("button.buttfilter").isNotEmpty()) {
+            val id = animeCard.selectFirst(".bookmark")?.attr("data-id") ?: ""
+            val numEp = animeCard.selectFirst(".info-item:contains(Episodes)")?.text()?.replace(Regex("\\D"), "") ?: "1"
+            Jsoup.parse(
+                app.post(
+                    url = "$mainUrl/wp-admin/admin-ajax.php",
+                    data = mapOf(
+                        "misha_number_of_results" to numEp,
+                        "misha_order_by" to "date-DESC",
+                        "action" to "mishafilter",
+                        "series_id" to id
+                    )
+                ).parsed<EpResponse>().content
+            ).select("li").map {
+                val episodeStr = it.selectFirst("a")?.text()?.trim() ?: ""
+                val episode = Regex("Episode\\s?(\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
+                val link = fixUrl(it.selectFirst("a")!!.attr("href"))
+                newEpisode(link) { this.episode = episode }
+            }.reversed()
+        } else {
+            // Fallback scrape langsung dari meta-episodes (Pertama & Terakhir, tapi bisa extend jika full list)
+            document.select(".anime-card__episode-list-section .episode-list-item a.ep-link").map {
                 val episodeStr = it.text().trim()
-                val epNum = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
+                val episode = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
                 val link = fixUrl(it.attr("href"))
-                newEpisode(link) { this.episode = epNum }
-            }
+                newEpisode(link) { this.episode = episode }
+            }.reversed()
         }
 
         val recommendations = document.select(".result > li").mapNotNull {
@@ -194,77 +186,49 @@ class Nontonanime : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(
+   override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
 
-        val document = app.get(data, headers = mapOf(
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-        )).document
+        val document = app.get(data).document
 
-        // Extract nonce dengan beberapa metode fallback
-        var nonce = ""
-        val scriptExtra = document.selectFirst("script#ajax_video-js-extra")
-        
-        if (scriptExtra != null) {
-            nonce = scriptExtra.html().substringAfter("nonce\":\"").substringBefore("\"")
-                .takeIf { it.isNotBlank() } 
-                ?: scriptExtra.html().substringAfter("'nonce\":\"").substringBefore("\"")
-            
-            if (nonce.isBlank() && scriptExtra.hasAttr("src") && scriptExtra.attr("src").contains("base64,")) {
-                val base64Part = scriptExtra.attr("src").substringAfter("base64,")
-                try {
-                    val decoded = base64Decode(base64Part)
-                    nonce = AppUtils.parseJson<Map<String, String>>(decoded.substringAfter("="))["nonce"] ?: ""
-                } catch (_: Exception) {}
-            }
-        }
+        val nonce =
+            document.select("script#ajax_video-js-extra").attr("src").substringAfter("base64,")
+                .let {
+                    AppUtils.parseJson<Map<String, String>>(base64Decode(it).substringAfter("="))["nonce"]
+                }
 
-        if (nonce.isBlank()) {
-            val anyScript = document.select("script:contains(player_ajax)").html()
-            nonce = Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(anyScript)?.groupValues?.get(1) ?: ""
-        }
-
-        if (nonce.isBlank()) return false
-
-        document.select(
-            ".container1 > ul > li:not(.boxtab), " +
-            ".server-list > li, " +
-            ".servers > li, " +
-            ".list-server > li, " +
-            ".anime-card__main ul li:not(.boxtab)"
-        ).amap {
-            val dataPost = it.attr("data-post").takeIf { it.isNotBlank() } ?: return@amap
+        document.select(".container1 > ul > li:not(.boxtab)").amap {
+            val dataPost = it.attr("data-post")
             val dataNume = it.attr("data-nume")
             val dataType = it.attr("data-type")
 
-            val iframeResponse = app.post(
+            val iframe = app.post(
                 url = "$mainUrl/wp-admin/admin-ajax.php",
                 data = mapOf(
                     "action" to "player_ajax",
                     "post" to dataPost,
                     "nume" to dataNume,
                     "type" to dataType,
-                    "nonce" to nonce
+                    "nonce" to "$nonce"
                 ),
                 referer = data,
                 headers = mapOf("X-Requested-With" to "XMLHttpRequest")
-            ).document
+            ).document.selectFirst("iframe")?.attr("src")
 
-            val iframe = iframeResponse.selectFirst("iframe")?.attr("src") ?: ""
-            if (iframe.isNotBlank()) {
-                loadExtractor(iframe, "$mainUrl/", subtitleCallback, callback)
-            }
+            loadExtractor(iframe ?: return@amap, "$mainUrl/", subtitleCallback, callback)
         }
 
         return true
     }
 
     private fun getBaseUrl(url: String): String {
-        return URI(url).let { "${it.scheme}://${it.host}" }
+        return URI(url).let {
+            "${it.scheme}://${it.host}"
+        }
     }
 
     private fun Element.getImageAttr(): String {
@@ -283,9 +247,4 @@ class Nontonanime : MainAPI() {
         @JsonProperty("content") val content: String
     )
 
-    private data class EpisodeItem(
-        val url: String,
-        val title: String,
-        val date: String
-    )
 }
