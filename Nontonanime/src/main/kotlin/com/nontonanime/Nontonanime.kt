@@ -123,29 +123,18 @@ class Nontonanime : MainAPI() {
 
         val trailer = animeCard.selectFirst("a.trailerbutton")?.attr("href")
 
-        // Daftar episode: Ambil dari .episode-list-items > a.episode-item (full list statis di halaman)
-        val episodeListSection = document.selectFirst("section.anime-card__episode-list-section")
-        val episodes = episodeListSection?.select(".episode-list-items > a.episode-item")?.mapNotNull {
-            val episodeStr = it.selectFirst(".ep-title")?.text()?.trim() ?: ""
-            val epNum = Regex("Episode\\s?(\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
-            val link = fixUrl(it.attr("href"))
+        // Episode list: scrape full dari .episode-list-items (statis di HTML)
+        val episodes = document.select(".episode-list-items > a.episode-item").mapNotNull { element ->
+            val epTitle = element.selectFirst(".ep-title")?.text()?.trim() ?: ""
+            val epNum = Regex("Episode\\s?(\\d+)").find(epTitle)?.groupValues?.get(1)?.toIntOrNull()
+            val link = fixUrl(element.attr("href"))
             if (link.isNotBlank()) {
                 newEpisode(link) {
                     this.episode = epNum
-                    this.name = episodeStr
+                    this.name = epTitle
                 }
             } else null
-        }?.sortedBy { it.episode } ?: listOf()
-
-        // Fallback jika tidak ada di section episode (jarang terjadi)
-        if (episodes.isEmpty()) {
-            document.select(".meta-episodes .meta-episode-item a.ep-link").mapNotNull {
-                val episodeStr = it.text().trim()
-                val epNum = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
-                val link = fixUrl(it.attr("href"))
-                newEpisode(link) { this.episode = epNum }
-            }
-        }
+        }.sortedBy { it.episode }
 
         val recommendations = document.select(".result > li").mapNotNull {
             val epHref = it.selectFirst("a")!!.attr("href")
@@ -175,49 +164,85 @@ class Nontonanime : MainAPI() {
             addAniListId(tracker?.aniId?.toIntOrNull())
         }
     }
-   override suspend fun loadLinks(
+
+    override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
 
-        val document = app.get(data).document
+        val document = app.get(data, headers = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Referer" to mainUrl + "/",
+            "Accept-Language" to "id-ID,id;q=0.9"
+        )).document
 
-        val nonce =
-            document.select("script#ajax_video-js-extra").attr("src").substringAfter("base64,")
-                .let {
-                    AppUtils.parseJson<Map<String, String>>(base64Decode(it).substringAfter("="))["nonce"]
+        // Nonce extraction - multiple fallback
+        var nonce = ""
+        val scriptExtra = document.selectFirst("script#ajax_video-js-extra")
+        if (scriptExtra != null) {
+            nonce = scriptExtra.html().substringAfter("nonce\":\"").substringBefore("\"").takeIf { it.isNotBlank() }
+                ?: scriptExtra.html().substringAfter("'nonce\":\"").substringBefore("\"")
+            
+            if (nonce.isBlank() && scriptExtra.hasAttr("src") && scriptExtra.attr("src").contains("base64,")) {
+                val base64Part = scriptExtra.attr("src").substringAfter("base64,")
+                try {
+                    val decoded = base64Decode(base64Part)
+                    nonce = AppUtils.parseJson<Map<String, String>>(decoded.substringAfter("="))["nonce"] ?: ""
+                } catch (_: Exception) {}
+            }
+        }
+
+        if (nonce.isBlank()) {
+            val anyScript = document.select("script:contains(player_ajax), script:contains(ajax_video-js-extra)").html()
+            nonce = Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(anyScript)?.groupValues?.get(1) ?: ""
+        }
+
+        if (nonce.isBlank()) return false  // Gagal ambil nonce → stop
+
+        // Selector server diperluas untuk situs WP anime Indo terbaru
+        val serverElements = document.select(
+            ".container1 > ul > li:not(.boxtab), " +
+            ".servers ul li, .server-list li, .list-server li, " +
+            ".player-servers li, .tab-content ul li, " +
+            ".anime-card__main ul li, " +
+            "[data-post][data-nume][data-type]"
+        )
+
+        serverElements.amap { server ->
+            try {
+                val dataPost = server.attr("data-post").takeIf { it.isNotBlank() } ?: return@amap
+                val dataNume = server.attr("data-nume")
+                val dataType = server.attr("data-type")
+
+                val response = app.post(
+                    url = "$mainUrl/wp-admin/admin-ajax.php",
+                    data = mapOf(
+                        "action" to "player_ajax",
+                        "post" to dataPost,
+                        "nume" to dataNume,
+                        "type" to dataType,
+                        "nonce" to nonce
+                    ),
+                    referer = data,
+                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                ).document
+
+                val iframeSrc = response.selectFirst("iframe")?.attr("src") ?: ""
+                if (iframeSrc.isNotBlank()) {
+                    loadExtractor(iframeSrc, "$mainUrl/", subtitleCallback, callback)
                 }
-
-        document.select(".container1 > ul > li:not(.boxtab)").amap {
-            val dataPost = it.attr("data-post")
-            val dataNume = it.attr("data-nume")
-            val dataType = it.attr("data-type")
-
-            val iframe = app.post(
-                url = "$mainUrl/wp-admin/admin-ajax.php",
-                data = mapOf(
-                    "action" to "player_ajax",
-                    "post" to dataPost,
-                    "nume" to dataNume,
-                    "type" to dataType,
-                    "nonce" to "$nonce"
-                ),
-                referer = data,
-                headers = mapOf("X-Requested-With" to "XMLHttpRequest")
-            ).document.selectFirst("iframe")?.attr("src")
-
-            loadExtractor(iframe ?: return@amap, "$mainUrl/", subtitleCallback, callback)
+            } catch (e: Exception) {
+                // Silent fail per server
+            }
         }
 
         return true
     }
 
     private fun getBaseUrl(url: String): String {
-        return URI(url).let {
-            "${it.scheme}://${it.host}"
-        }
+        return URI(url).let { "${it.scheme}://${it.host}" }
     }
 
     private fun Element.getImageAttr(): String {
@@ -235,5 +260,4 @@ class Nontonanime : MainAPI() {
         @JsonProperty("found_posts") val found_posts: Int?,
         @JsonProperty("content") val content: String
     )
-
 }
