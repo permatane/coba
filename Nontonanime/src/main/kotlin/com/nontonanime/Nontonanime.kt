@@ -149,7 +149,7 @@ class Nontonanime : MainAPI() {
             }.reversed()
         } else {
             // Fallback scrape langsung dari meta-episodes (Pertama & Terakhir, tapi bisa extend jika full list)
-            document.select(".anime-card__episode-list-section .episode-list-item a.ep-link").map {
+            document.select(".episode-list-item").map {
                 val episodeStr = it.text().trim()
                 val episode = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
                 val link = fixUrl(it.attr("href"))
