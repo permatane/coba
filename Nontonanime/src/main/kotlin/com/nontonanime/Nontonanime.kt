@@ -52,22 +52,31 @@ class Nontonanime : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/${request.data}").document
+        
+        // Tambah scraping untuk featured slider atau banner atas
+        val featured = document.select("div.slider, .owl-carousel .item, .hero-slider .item, .banner img").mapNotNull {
+            it.toSearchResult()
+        }
+
         val home = document.select(".animeseries").mapNotNull {
             it.toSearchResult()
         }
-        return newHomePageResponse(request.name, home, hasNext = false)
+        
+        // Combine featured jika ada
+        val allHome = if (featured.isNotEmpty()) featured + home else home
+        
+        return newHomePageResponse(request.name, allHome, hasNext = false)
     }
 
-    private fun Element.toSearchResult(): AnimeSearchResponse {
-        val href = fixUrl(this.selectFirst("a")!!.attr("href"))
-        val title = this.selectFirst(".title")?.text() ?: ""
+    private fun Element.toSearchResult(): AnimeSearchResponse? {
+        val href = fixUrl(this.selectFirst("a")?.attr("href") ?: return null)
+        val title = this.selectFirst(".title")?.text() ?: return null
         val posterUrl = fixUrlNull(this.selectFirst("img")?.getImageAttr())
 
         return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
             addDubStatus(dubExist = false, subExist = true)
         }
-
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -100,6 +109,10 @@ class Nontonanime : MainAPI() {
         mainUrl = getBaseUrl(req.url)
         val document = req.document
 
+        // Extract misha nonce untuk episode ajax
+        val mishaScript = document.select("script:contains(misha)").html()
+        val mishaNonce = Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(mishaScript)?.groupValues?.get(1) ?: ""
+
         val title = document.selectFirst("h1.entry-title.cs")!!.text()
             .removeSurrounding("Nonton Anime", "Sub Indo").trim()
         val poster = document.selectFirst(".poster > img")?.getImageAttr()
@@ -128,23 +141,25 @@ class Nontonanime : MainAPI() {
                         "misha_number_of_results" to numEp,
                         "misha_order_by" to "date-DESC",
                         "action" to "mishafilter",
-                        "series_id" to id
-                    )
+                        "series_id" to id,
+                        "nonce" to mishaNonce  // Tambah nonce untuk mishafilter
+                    ),
+                    headers = mapOf("X-Requested-With" to "XMLHttpRequest")
                 ).parsed<EpResponse>().content
             ).select("li").map {
                 val episode = Regex("Episode\\s?(\\d+)").find(
                     it.selectFirst("a")?.text().toString()
-                )?.groupValues?.getOrNull(0) ?: it.selectFirst("a")?.text()
+                )?.groupValues?.getOrNull(0) ?: it.selectFirst("a")?.text() ?: ""
                 val link = fixUrl(it.selectFirst("a")!!.attr("href"))
-                newEpisode(link){this.episode = episode?.toIntOrNull()}
+                newEpisode(link){this.episode = episode.toIntOrNull()}
             }.reversed()
         } else {
             document.select("ul.misha_posts_wrap2 > li").map {
                 val episode = Regex("Episode\\s?(\\d+)").find(
                     it.selectFirst("a")?.text().toString()
-                )?.groupValues?.getOrNull(0) ?: it.selectFirst("a")?.text()
+                )?.groupValues?.getOrNull(0) ?: it.selectFirst("a")?.text() ?: ""
                 val link = it.select("a").attr("href")
-                newEpisode(link){this.episode = episode?.toIntOrNull()}
+                newEpisode(link){this.episode = episode.toIntOrNull()}
             }.reversed()
         }
 
@@ -187,12 +202,14 @@ class Nontonanime : MainAPI() {
 
         val document = app.get(data).document
 
-        val nonceScript = document.selectFirst("script#ajax_video-js-extra")?.html() ?: ""
+        val nonceScript = document.select("script#ajax_video-js-extra, script:contains(player_ajax)").html()
         val nonce = nonceScript.substringAfter("nonce\":\"").substringBefore("\"")
             .takeIf { it.isNotBlank() }
             ?: nonceScript.substringAfter("'nonce':'").substringBefore("'")
+            ?: nonceScript.substringAfter("nonce: \"").substringBefore("\"")
+            ?: nonceScript.substringAfter("nonce: '").substringBefore("'")
             ?: Regex("""nonce["']?\s*:\s*["']([^"']+)["']""").find(nonceScript)?.groupValues?.get(1)
-            ?: return false  // Fallback if nonce not found
+            ?: return false  // Lebih banyak varian untuk nonce
 
         document.select(".container1 > ul > li:not(.boxtab)").amap {
             val dataPost = it.attr("data-post")
@@ -209,7 +226,10 @@ class Nontonanime : MainAPI() {
                     "nonce" to nonce
                 ),
                 referer = data,
-                headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+                headers = mapOf(
+                    "X-Requested-With" to "XMLHttpRequest",
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                )  // Tambah user-agent untuk bypass potensial
             ).document.selectFirst("iframe")?.attr("src")
 
             loadExtractor(iframe ?: return@amap, "$mainUrl/", subtitleCallback, callback)
@@ -231,6 +251,7 @@ class Nontonanime : MainAPI() {
             this.hasAttr("data-lazyload") -> this.attr("abs:data-lazyload")
             this.hasAttr("data-original") -> this.attr("abs:data-original")
             this.hasAttr("data-lazy") -> this.attr("abs:data-lazy")
+            this.hasAttr("data-srcset") -> this.attr("abs:data-srcset").substringBefore(" ")
             this.hasAttr("srcset") -> this.attr("abs:srcset").split(",").firstOrNull()?.trim()?.split(" ")?.firstOrNull()
             this.hasAttr("src") && this.attr("src").isNotBlank() -> this.attr("abs:src")
             else -> null
