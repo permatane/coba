@@ -27,8 +27,7 @@ class Nontonanime : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/${request.data}").document
-        // Selector .animeseries mencakup poster di halaman depan
-        val home = document.select(".animeseries").mapNotNull {
+        val home = document.select(".animeseries, .result li, article").mapNotNull {
             it.toSearchResult()
         }
         return newHomePageResponse(request.name, home, hasNext = false)
@@ -37,9 +36,9 @@ class Nontonanime : MainAPI() {
     private fun Element.toSearchResult(): AnimeSearchResponse {
         val a = this.selectFirst("a")
         val href = fixUrl(a?.attr("href") ?: "")
-        val title = this.selectFirst(".title")?.text() ?: ""
+        val title = this.selectFirst(".title, h2, h3")?.text() ?: ""
         
-        // PERBAIKAN POSTER: Mengambil atribut data-src karena situs menggunakan lazy load
+        // Perbaikan selector poster: Mengambil data-src atau src
         val posterUrl = this.selectFirst("img")?.let { 
             val url = it.attr("data-src").ifEmpty { it.attr("src") }
             fixUrlNull(url)
@@ -50,42 +49,33 @@ class Nontonanime : MainAPI() {
         }
     }
 
-    override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.get("$mainUrl/?s=$query").document
-        return document.select(".result > ul > li").mapNotNull {
-            val title = it.selectFirst("h2")?.text()?.trim() ?: ""
-            val href = fixUrl(it.selectFirst("a")?.attr("href") ?: "")
-            // Search biasanya menggunakan src langsung
-            val poster = it.selectFirst("img")?.attr("abs:src")
-            
-            newAnimeSearchResponse(title, href, TvType.Anime) {
-                this.posterUrl = poster
-            }
-        }
-    }
-
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
         
-        // PERBAIKAN "COMING SOON": Jika klik dari episode, paksa ambil data dari halaman series/detail
-        val detailUrl = if (url.contains("-episode-")) {
-            document.selectFirst(".nvs.nvsc a")?.attr("href") ?: url
-        } else url
+        // PERBAIKAN UTAMA: Mencari link halaman "Series" jika user mengklik dari episode (Latest Update)
+        // Tombol ini biasanya ada di bawah judul dengan teks "Series" atau ikon rumah
+        val detailUrl = document.selectFirst(".nvs.nvsc a, .nvs a")?.attr("href") ?: url
         
         val detailDoc = if (detailUrl != url) app.get(detailUrl).document else document
 
+        // Selector judul yang lebih akurat
         val title = detailDoc.selectFirst("h1.entry-title")?.text()
             ?.replace("Nonton Anime", "")?.replace("Sub Indo", "")?.trim() ?: ""
         
-        val poster = detailDoc.selectFirst(".poster img")?.attr("abs:src")
-        val description = detailDoc.select(".entry-content.seriesdesc p").text().trim()
-        val rating = detailDoc.select(".nilaiseries").text().trim()
+        val poster = detailDoc.selectFirst(".poster img, .thumb img")?.attr("abs:src")
+        
+        // PERBAIKAN PLOT: Selector untuk deskripsi/sinopsis
+        val description = detailDoc.select(".entry-content.seriesdesc p, .sinopsis p, .desc").text().trim()
+        
+        val rating = detailDoc.select(".nilaiseries, .rating strong").text().trim()
 
-        // Selector episode terbaru sesuai struktur misha_posts_wrap2
+        // PERBAIKAN TOMBOL PLAY/EPISODE: Mengambil daftar episode dari tabel atau list misha
         val episodes = detailDoc.select(".misha_posts_wrap2 li, .list-episode li").mapNotNull {
             val a = it.selectFirst("a") ?: return@mapNotNull null
             val name = a.text()
-            val epNum = Regex("Episode\\s?(\\d+)").find(name)?.groupValues?.get(1)?.toIntOrNull()
+            // Ekstrak angka episode
+            val epNum = Regex("""Episode\s?(\d+)""").find(name)?.groupValues?.get(1)?.toIntOrNull()
+            
             newEpisode(fixUrl(a.attr("href"))) {
                 this.name = name
                 this.episode = epNum
@@ -95,7 +85,7 @@ class Nontonanime : MainAPI() {
         return newAnimeLoadResponse(title, url, TvType.Anime) {
             this.posterUrl = poster
             addEpisodes(DubStatus.Subbed, episodes)
-            plot = description
+            this.plot = if (description.isEmpty()) "No plot available" else description
             addScore(rating)
         }
     }
@@ -109,15 +99,16 @@ class Nontonanime : MainAPI() {
         val res = app.get(data)
         val document = res.document
 
-        // PERBAIKAN VIDEO: Mengambil nonce secara dinamis dari script di halaman
+        // Mengambil nonce dari script tag
         val nonce = Regex("""["']nonce["']\s*:\s*["']([^"']+)""").find(res.text)?.groupValues?.get(1)
 
-        document.select(".container1 > ul > li[data-post]").amap {
+        // Cari semua provider video
+        document.select(".container1 > ul > li[data-post], .player-option").amap {
             val dataPost = it.attr("data-post")
             val dataNume = it.attr("data-nume")
             val dataType = it.attr("data-type")
 
-            if (!nonce.isNullOrEmpty()) {
+            if (!nonce.isNullOrEmpty() && dataPost.isNotEmpty()) {
                 val response = app.post(
                     url = "$mainUrl/wp-admin/admin-ajax.php",
                     data = mapOf(
@@ -131,7 +122,6 @@ class Nontonanime : MainAPI() {
                     headers = mapOf("X-Requested-With" to "XMLHttpRequest")
                 ).text
 
-                // Ekstrak URL iframe dari response Ajax
                 val iframeUrl = Regex("""src=['"]([^"']+)""").find(response)?.groupValues?.get(1)
                 
                 if (!iframeUrl.isNullOrEmpty()) {
