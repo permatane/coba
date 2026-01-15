@@ -130,7 +130,7 @@ class Nontonanime : MainAPI() {
         // Episodes: Coba ambil dari .meta-episodes jika statis, atau fallback ke mishafilter ajax (jika button.buttfilter ada)
         val episodes = if (document.select("button.buttfilter").isNotEmpty()) {
             val id = animeCard.selectFirst(".bookmark")?.attr("data-id") ?: ""
-            val numEp = animeCard.selectFirst(".info-item:contains(Episodes)")?.text()?.replace(Regex("\\D"), "") ?: "1"
+            val numEp = animeCard.selectFirst(".info-item:contains(episodes-list)")?.text()?.replace(Regex("\\D"), "") ?: "1"
             Jsoup.parse(
                 app.post(
                     url = "$mainUrl/wp-admin/admin-ajax.php",
@@ -149,7 +149,7 @@ class Nontonanime : MainAPI() {
             }.reversed()
         } else {
             // Fallback scrape langsung dari meta-episodes (Pertama & Terakhir, tapi bisa extend jika full list)
-            document.select(".episode-list-item").map {
+            document.select(".episodes-list .episode-list-item a.ep-link").map {
                 val episodeStr = it.text().trim()
                 val episode = Regex("Episode (\\d+)").find(episodeStr)?.groupValues?.get(1)?.toIntOrNull()
                 val link = fixUrl(it.attr("href"))
